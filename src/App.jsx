@@ -74,12 +74,10 @@ function EntryEditor({entry,onUpdate,onDelete}){
 
   return(
     <div style={{background:"white",borderRadius:14,border:"1px solid #f1f5f9",marginBottom:12,boxShadow:"0 2px 8px rgba(99,102,241,0.06)",position:"relative"}}>
-      {/* Collapse + Delete — pinned to top-right */}
       <div style={{position:"absolute",top:8,right:10,display:"flex",gap:5,zIndex:2}}>
         <button onClick={()=>setCollapsed(c=>!c)} style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:7,padding:"3px 9px",cursor:"pointer",fontSize:11,color:"#64748b",fontFamily:"inherit",whiteSpace:"nowrap"}}>{collapsed?"∨":"∧"} {collapsed?"펼치기":"접기"}</button>
         <button onClick={onDelete} style={{background:"#fff0f0",border:"1px solid #fecaca",borderRadius:7,padding:"4px 8px",cursor:"pointer",color:"#ef4444",fontFamily:"inherit",fontSize:13}}>🗑</button>
       </div>
-      {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",paddingRight:130,borderBottom:collapsed?"none":"1px solid #f1f5f9"}}>
         <div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#eeece8,#fae8ff)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#a05070",border:"2px solid #d4d0ca",flexShrink:0}}>{entry.num}</div>
         {collapsed
@@ -94,7 +92,6 @@ function EntryEditor({entry,onUpdate,onDelete}){
       </div>
       {!collapsed&&(
         <div style={{padding:"10px 14px 14px"}}>
-          {/* Toolbar */}
           <div style={{display:"flex",gap:3,marginBottom:8,padding:6,background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0",flexWrap:"wrap",alignItems:"center"}}>
             {[["B","bold",{fontWeight:800}],["I","italic",{fontStyle:"italic"}],["U","underline",{textDecoration:"underline"}],["S","strikeThrough",{textDecoration:"line-through"}]].map(([l,c,s])=>(
               <button key={c} onMouseDown={e=>{e.preventDefault();exec(c);}} style={{...s,background:"white",border:"1px solid #e2e8f0",borderRadius:6,padding:"2px 8px",cursor:"pointer",fontSize:12,minWidth:26,fontFamily:"inherit"}}>{l}</button>
@@ -108,7 +105,6 @@ function EntryEditor({entry,onUpdate,onDelete}){
               <button key={l} onMouseDown={e=>{e.preventDefault();exec(c,v);}} style={{background:"white",border:"1px solid #e2e8f0",borderRadius:6,padding:"2px 7px",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>{l}</button>
             ))}
           </div>
-          {/* Editor */}
           <div style={{position:"relative"}}>
             {isEmpty&&(
               <div style={{position:"absolute",top:10,left:10,fontSize:14,color:"#cbd5e1",pointerEvents:"none",userSelect:"none"}}>
@@ -135,7 +131,7 @@ function EntryEditor({entry,onUpdate,onDelete}){
   );
 }
 
-// ── Chapter inline rename ──
+// ── Chapter inline rename (싱글클릭으로 수정) ──
 function ChapterNameInput({name,onRename}){
   const [editing,setEditing]=useState(false);
   const [val,setVal]=useState(name);
@@ -152,14 +148,14 @@ function ChapterNameInput({name,onRename}){
   }
   return(
     <span
-      onDoubleClick={e=>{e.stopPropagation();setEditing(true);}}
-      title="더블클릭하여 이름 수정"
+      onClick={e=>{e.stopPropagation();setEditing(true);}}
+      title="클릭하여 이름 수정"
       style={{fontSize:13,fontWeight:600,color:"#7a2848",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"text"}}
     >{name}</span>
   );
 }
 
-// ── Page inline rename ──
+// ── Page inline rename (싱글클릭으로 수정) ──
 function PageNameInput({name,onRename,isSelected}){
   const [editing,setEditing]=useState(false);
   const [val,setVal]=useState(name);
@@ -176,8 +172,8 @@ function PageNameInput({name,onRename,isSelected}){
   }
   return(
     <span
-      onDoubleClick={e=>{e.stopPropagation();setEditing(true);}}
-      title="더블클릭하여 이름 수정"
+      onClick={e=>{e.stopPropagation();setEditing(true);}}
+      title="클릭하여 이름 수정"
       style={{fontSize:12,color:isSelected?"#7a2848":"#6a5060",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"text"}}
     >{name}</span>
   );
@@ -185,12 +181,15 @@ function PageNameInput({name,onRename,isSelected}){
 
 // ── Note Page ──
 function NotePage({onEntriesChange}){
-  const [notebooks,setNotebooks]=useState([]);
+  const [notebooks,setNotebooks]=useState(()=>{
+    try{const v=localStorage.getItem("bm_notebooks");return v?JSON.parse(v):[];}catch{return[];}
+  });
   const [selNb,setSelNb]=useState(null);
   const [selCh,setSelCh]=useState(null);
   const [selPg,setSelPg]=useState(null);
   const [addingNb,setAddingNb]=useState(false);
   const [newNbName,setNewNbName]=useState("");
+  const [saveMsg,setSaveMsg]=useState("");
   const nb=notebooks.find(n=>n.id===selNb);
   const chapter=nb?.chapters.find(c=>c.id===selCh);
   const page=chapter?.pages.find(p=>p.id===selPg);
@@ -199,6 +198,11 @@ function NotePage({onEntriesChange}){
     const t=notebooks.reduce((a,n)=>a+n.chapters.reduce((b,c)=>b+c.pages.reduce((d,p)=>d+p.entries.length,0),0),0);
     onEntriesChange(t);
   });
+
+  const saveNotebooks=()=>{
+    try{localStorage.setItem("bm_notebooks",JSON.stringify(notebooks));setSaveMsg("저장됨 ✓");setTimeout(()=>setSaveMsg(""),2000);}
+    catch{setSaveMsg("저장 실패");setTimeout(()=>setSaveMsg(""),2000);}
+  };
 
   const upNbs=fn=>setNotebooks(fn);
   const addNb=()=>{
@@ -324,14 +328,20 @@ function NotePage({onEntriesChange}){
                 <span style={{color:"#c0bab2",margin:"0 6px"}}>›</span>
                 <span style={{fontWeight:700,color:"#334155"}}>{page.name}</span>
               </div>
-              <span style={{fontSize:11,background:"#eeece8",color:"#a05070",padding:"2px 10px",borderRadius:20}}>{page.entries.length}개의 항목</span>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {saveMsg&&<span style={{fontSize:11,color:"#22c55e",fontWeight:600}}>{saveMsg}</span>}
+                <span style={{fontSize:11,background:"#eeece8",color:"#a05070",padding:"2px 10px",borderRadius:20}}>{page.entries.length}개의 항목</span>
+                <button onClick={saveNotebooks} style={{padding:"5px 14px",background:"#a05070",color:"white",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit"}}>💾 저장</button>
+              </div>
             </div>
             <div style={{flex:1,overflowY:"auto",padding:20}}>
               {page.entries.length===0&&<div style={{textAlign:"center",color:"#94a3b8",fontSize:13,marginTop:60}}>아래 버튼으로 첫 엔트리를 추가해보세요! ✨</div>}
               {page.entries.map(e=><EntryEditor key={e.id} entry={e} onUpdate={d=>updateEntry(e.id,d)} onDelete={()=>deleteEntry(e.id)}/>)}
             </div>
-            <div style={{padding:"12px 20px",borderTop:"1px solid #e2e8f0",background:"white"}}>
+            <div style={{padding:"12px 20px",borderTop:"1px solid #e2e8f0",background:"white",display:"flex",gap:10,alignItems:"center"}}>
               <button onClick={addEntry} style={{padding:"10px 24px",fontFamily:"inherit",background:"linear-gradient(135deg,#eeece8,#fce7f3)",border:"1px solid #b0aba3",borderRadius:12,cursor:"pointer",fontSize:13,fontWeight:600,color:"#a05070"}}>+ 엔트리 추가</button>
+              <button onClick={saveNotebooks} style={{padding:"10px 20px",fontFamily:"inherit",background:"#a05070",border:"none",borderRadius:12,cursor:"pointer",fontSize:13,fontWeight:600,color:"white"}}>💾 노트 저장</button>
+              {saveMsg&&<span style={{fontSize:12,color:"#22c55e",fontWeight:600}}>{saveMsg}</span>}
             </div>
           </>
         )}
@@ -356,7 +366,6 @@ function QuestItem({quest,onStart,onPause,onResume,onUndo,onDelete,onEditMin,onE
         <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${done?"#22c55e":"#cbd5e1"}`,background:done?"#22c55e":"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           {done&&<span style={{color:"white",fontSize:10}}>✓</span>}
         </div>
-        {/* Editable quest label */}
         {editingLabel && !done ? (
           <input autoFocus value={localLabel}
             onChange={e=>setLocalLabel(e.target.value)}
@@ -590,7 +599,6 @@ function KoreanCalendar({ compact = false }) {
                   lineHeight:1,
                 }}>{cell.day}</span>
               </div>
-              {/* dots under number */}
               {!isToday && cell.current && isTemp && (
                 <div style={{ width:3,height:3,borderRadius:"50%",background:"#f59e0b",marginTop:1 }}/>
               )}
@@ -602,7 +610,6 @@ function KoreanCalendar({ compact = false }) {
         })}
       </div>
 
-      {/* Legend — hidden in compact mode */}
       {!compact && (
         <div style={{ display:"flex",gap:12,marginTop:12,paddingTop:10,borderTop:"1px solid #f1f5f9",flexWrap:"wrap" }}>
           {[
@@ -616,7 +623,6 @@ function KoreanCalendar({ compact = false }) {
         </div>
       )}
 
-      {/* Compact legend — tiny */}
       {compact && (
         <div style={{ display:"flex",gap:8,marginTop:8,flexWrap:"wrap" }}>
           {[
@@ -632,7 +638,6 @@ function KoreanCalendar({ compact = false }) {
         </div>
       )}
 
-      {/* Holiday list — hidden in compact mode */}
       {!compact && (() => {
         const list = [];
         for (let d = 1; d <= daysInMonth; d++) {
@@ -668,14 +673,12 @@ const DAY_LABELS=["일","월","화","수","목","금","토"];
 function getWeekLabel(){
   const now=new Date();
   const month=now.getMonth()+1;
-  // week number within month (1-based)
   const firstDay=new Date(now.getFullYear(),now.getMonth(),1).getDay();
   const weekNum=Math.ceil((now.getDate()+firstDay)/7);
   return `${month}월 ${weekNum}주차`;
 }
 
 function getDayDate(dayIdx){
-  // Return the actual date (MM/DD) for given day-of-week index this week
   const now=new Date();
   const todayIdx=now.getDay();
   const diff=dayIdx-todayIdx;
@@ -701,14 +704,12 @@ function WeeklyBarChart({title,barColor,data,unit,todayIdx}){
           return(
             <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",height:"100%",justifyContent:"flex-end",position:"relative",cursor:"default"}}
               onMouseEnter={()=>setHovered(i)} onMouseLeave={()=>setHovered(null)}>
-              {/* Tooltip with date */}
               {isHov&&(
                 <div style={{position:"absolute",top:-38,left:"50%",transform:"translateX(-50%)",background:"#2d1a22",color:"white",fontSize:10,fontWeight:600,padding:"4px 8px",borderRadius:7,whiteSpace:"nowrap",zIndex:10,lineHeight:1.5,textAlign:"center"}}>
                   <div style={{color:"#e8b8cc",fontSize:9}}>{getDayDate(i)}</div>
                   <div>{val>0?`${val}${unit}`:`-`}</div>
                 </div>
               )}
-              {/* Bar */}
               <div style={{
                 width:"100%", height:`${pct}%`,
                 borderRadius:"5px 5px 0 0",
@@ -720,7 +721,6 @@ function WeeklyBarChart({title,barColor,data,unit,todayIdx}){
           );
         })}
       </div>
-      {/* Day labels */}
       <div style={{display:"flex",gap:6,marginTop:6}}>
         {DAY_LABELS.map((d,i)=>(
           <div key={i} style={{flex:1,textAlign:"center",fontSize:10,fontWeight:i===todayIdx?700:400,color:i===todayIdx?"#a05070":"#c0aab8"}}>
@@ -744,14 +744,12 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab}){
   const [addingQ,setAddingQ]=useState(false);
   const [newQL,setNewQL]=useState("");
 
-  // Pause all running quests when user navigates away from dashboard
   useEffect(()=>{
     if(activeTab!=="dashboard"){
       setQuests(p=>p.map(q=>q.running?{...q,running:false}:q));
     }
   },[activeTab]);
 
-  // Single interval that ticks all running quests — survives tab switches
   const ivRef=useRef(null);
   useEffect(()=>{
     ivRef.current=setInterval(()=>{
@@ -770,9 +768,8 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab}){
     return()=>clearInterval(ivRef.current);
   },[]);
 
-  // Fire XP when _justDone is set
   useEffect(()=>{
-    const today=new Date().getDay(); // 0=Sun ... 6=Sat
+    const today=new Date().getDay();
     quests.forEach(q=>{
       if(q._justDone){
         onXPChange(x=>x+q.baseXp);
@@ -830,7 +827,6 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab}){
       </div>
 
       <div className="dash-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        {/* Quests */}
         <div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
             <span style={{fontSize:14,fontWeight:600,color:"#334155"}}>🎯 오늘의 퀘스트</span>
@@ -867,7 +863,6 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab}){
           </div>
         </div>
 
-        {/* Right col */}
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <KoreanCalendar compact/>
           <div style={{background:aiCfg.bg,borderRadius:14,padding:14,border:`1px solid ${aiCfg.border}`}}>
@@ -889,7 +884,6 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab}){
         </div>
       </div>
 
-      {/* Badges */}
       <div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
           <span style={{fontSize:14,fontWeight:600,color:"#334155"}}>🏅 배지 컬렉션</span>
@@ -908,14 +902,12 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab}){
         </div>
       </div>
 
-      {/* Monthly report */}
       <div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0"}}>
         <div style={{display:"flex",alignItems:"center",marginBottom:12}}>
           <span style={{fontSize:14,fontWeight:600,color:"#334155"}}>📊 월간 리포트</span>
           <span style={{fontSize:12,color:"#94a3b8",marginLeft:"auto"}}>{new Date().getFullYear()}년 {new Date().getMonth()+1}월</span>
         </div>
 
-        {/* Stat cards */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
           {[
             {icon:"⚡",label:"총 획득 XP",   val:`${xp} XP`},
@@ -931,25 +923,11 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab}){
           ))}
         </div>
 
-        {/* Charts */}
         <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
-          <WeeklyBarChart
-            title="이번 주 획득 XP"
-            barColor="#a05070"
-            data={stats.weeklyXP}
-            unit="XP"
-            todayIdx={new Date().getDay()}
-          />
-          <WeeklyBarChart
-            title="이번 주 학습 시간"
-            barColor="#c07090"
-            data={stats.weeklyMins}
-            unit="분"
-            todayIdx={new Date().getDay()}
-          />
+          <WeeklyBarChart title="이번 주 획득 XP" barColor="#a05070" data={stats.weeklyXP} unit="XP" todayIdx={new Date().getDay()}/>
+          <WeeklyBarChart title="이번 주 학습 시간" barColor="#c07090" data={stats.weeklyMins} unit="분" todayIdx={new Date().getDay()}/>
         </div>
 
-        {/* Rank criteria */}
         <div style={{fontSize:13,fontWeight:600,color:"#334155",marginBottom:10}}>🏆 월간 랭킹 기준</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
           {RANKS.map(r=>{
@@ -990,20 +968,16 @@ function CelebrationModal({type,value,onClose}){
   );
 }
 
-// ── Default Avatar SVG (generic user silhouette) ──
 function DefaultAvatar({size=40, style={}}){
   return(
     <svg width={size} height={size} viewBox="0 0 100 100" style={{display:"block",borderRadius:"50%",...style}}>
       <rect width="100" height="100" fill="#c8d3db"/>
-      {/* head */}
       <circle cx="50" cy="37" r="18" fill="#9baab4"/>
-      {/* body / shoulders – oversized so it fills bottom of circle */}
       <ellipse cx="50" cy="85" rx="32" ry="22" fill="#9baab4"/>
     </svg>
   );
 }
 
-// ── Avatar display – shows image if set, else default silhouette ──
 function AvatarImg({src, size=36, border="2px solid #d4d0ca", style={}}){
   const base={width:size,height:size,borderRadius:"50%",overflow:"hidden",flexShrink:0,display:"block",...style};
   if(src){
@@ -1016,10 +990,9 @@ function AvatarImg({src, size=36, border="2px solid #d4d0ca", style={}}){
   );
 }
 
-// ── Profile Modal ──
 function ProfileModal({profile,onSave,onClose,onLogout,onWithdraw}){
   const [name,setName]=useState(profile.name);
-  const [avatarSrc,setAvatarSrc]=useState(profile.avatarSrc||null); // base64 or null
+  const [avatarSrc,setAvatarSrc]=useState(profile.avatarSrc||null);
   const [bio,setBio]=useState(profile.bio||"");
   const [goal,setGoal]=useState(profile.goal||"");
   const fileRef=useRef(null);
@@ -1039,16 +1012,11 @@ function ProfileModal({profile,onSave,onClose,onLogout,onWithdraw}){
       <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:24,padding:"32px 36px",width:420,maxWidth:"92vw",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}}>
         <style>{`@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
         <div style={{animation:"slideUp 0.25s ease"}}>
-
-          {/* Header */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
             <div style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>프로필 수정</div>
             <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:8,width:30,height:30,cursor:"pointer",fontSize:16,color:"#64748b"}}>✕</button>
           </div>
-
-          {/* Avatar upload area */}
           <div style={{textAlign:"center",marginBottom:24}}>
-            {/* Preview */}
             <div style={{position:"relative",display:"inline-block",marginBottom:12}}>
               <div style={{width:96,height:96,borderRadius:"50%",overflow:"hidden",border:"3px solid #d4d0ca",boxShadow:"0 4px 18px rgba(99,102,241,0.2)",margin:"0 auto"}}>
                 {avatarSrc
@@ -1056,33 +1024,23 @@ function ProfileModal({profile,onSave,onClose,onLogout,onWithdraw}){
                   : <DefaultAvatar size={96}/>
                 }
               </div>
-              {/* Camera overlay button */}
               <button onClick={()=>fileRef.current?.click()}
                 style={{position:"absolute",bottom:2,right:2,width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#1e1e1e,#3d3d3d)",border:"2px solid white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>
                 📷
               </button>
             </div>
-
-            {/* Drop zone */}
             <div
               onDragOver={e=>{e.preventDefault();setDragOver(true);}}
               onDragLeave={()=>setDragOver(false)}
               onDrop={e=>{e.preventDefault();setDragOver(false);loadFile(e.dataTransfer.files[0]);}}
               onClick={()=>fileRef.current?.click()}
-              style={{
-                border:`2px dashed ${dragOver?"#a05070":"#d4d0ca"}`,
-                borderRadius:12,padding:"12px 16px",cursor:"pointer",
-                background:dragOver?"#f5f4f2":"#f8fafc",
-                transition:"all 0.2s",
-              }}>
+              style={{border:`2px dashed ${dragOver?"#a05070":"#d4d0ca"}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",background:dragOver?"#f5f4f2":"#f8fafc",transition:"all 0.2s"}}>
               <div style={{fontSize:20,marginBottom:4}}>🖼️</div>
               <div style={{fontSize:12,color:"#a05070",fontWeight:600}}>클릭 또는 이미지를 드래그하세요</div>
               <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>JPG, PNG, GIF 지원</div>
             </div>
             <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}}
               onChange={e=>loadFile(e.target.files[0])}/>
-
-            {/* Reset button */}
             {avatarSrc&&(
               <button onClick={()=>setAvatarSrc(null)}
                 style={{marginTop:8,background:"none",border:"none",fontSize:12,color:"#94a3b8",cursor:"pointer",textDecoration:"underline",fontFamily:"inherit"}}>
@@ -1090,8 +1048,6 @@ function ProfileModal({profile,onSave,onClose,onLogout,onWithdraw}){
               </button>
             )}
           </div>
-
-          {/* Fields */}
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             <div>
               <label style={{fontSize:12,fontWeight:600,color:"#475569",display:"block",marginBottom:4}}>이름</label>
@@ -1112,8 +1068,6 @@ function ProfileModal({profile,onSave,onClose,onLogout,onWithdraw}){
                 placeholder="오늘의 목표를 적어보세요"/>
             </div>
           </div>
-
-          {/* Buttons */}
           <div style={{display:"flex",gap:10,marginTop:24}}>
             <button onClick={onClose} style={{flex:1,padding:"11px",border:"1px solid #e2e8f0",borderRadius:12,background:"white",fontSize:14,cursor:"pointer",color:"#64748b",fontFamily:"inherit"}}>취소</button>
             <button onClick={()=>{onSave({name:name.trim()||"학습자",avatarSrc,bio,goal});onClose();}}
@@ -1121,8 +1075,6 @@ function ProfileModal({profile,onSave,onClose,onLogout,onWithdraw}){
               저장하기 ✓
             </button>
           </div>
-
-          {/* Account actions */}
           <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid #f0e8ec",display:"flex",flexDirection:"column",gap:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <button onClick={onLogout}
@@ -1138,8 +1090,6 @@ function ProfileModal({profile,onSave,onClose,onLogout,onWithdraw}){
   );
 }
 
-
-// ── Withdraw confirm button (no window.confirm) ──
 function WithdrawButton({onWithdraw}){
   const [step,setStep]=useState(0);
   if(step===0) return(
@@ -1162,35 +1112,23 @@ function WithdrawButton({onWithdraw}){
     </div>
   );
 }
+
 function Confetti(){
   const pieces=Array.from({length:48},(_,i)=>({
-    id:i,
-    x:Math.random()*100,
-    delay:Math.random()*1.2,
-    dur:1.4+Math.random()*0.8,
-    size:6+Math.random()*7,
-    color:["#a05070","#a05070","#ec4899","#f59e0b","#22c55e","#3b82f6"][Math.floor(Math.random()*6)],
+    id:i,x:Math.random()*100,delay:Math.random()*1.2,dur:1.4+Math.random()*0.8,
+    size:6+Math.random()*7,color:["#a05070","#a05070","#ec4899","#f59e0b","#22c55e","#3b82f6"][Math.floor(Math.random()*6)],
     rot:Math.random()*360,
   }));
   return(
     <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:2000,overflow:"hidden"}}>
-      <style>{`
-        @keyframes cffall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
-      `}</style>
+      <style>{`@keyframes cffall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}`}</style>
       {pieces.map(p=>(
-        <div key={p.id} style={{
-          position:"absolute",left:`${p.x}%`,top:0,
-          width:p.size,height:p.size,borderRadius:p.id%3===0?"50%":3,
-          background:p.color,
-          animation:`cffall ${p.dur}s ${p.delay}s ease-in forwards`,
-          transform:`rotate(${p.rot}deg)`,
-        }}/>
+        <div key={p.id} style={{position:"absolute",left:`${p.x}%`,top:0,width:p.size,height:p.size,borderRadius:p.id%3===0?"50%":3,background:p.color,animation:`cffall ${p.dur}s ${p.delay}s ease-in forwards`,transform:`rotate(${p.rot}deg)`}}/>
       ))}
     </div>
   );
 }
 
-// ── Notification Bar ──
 function NotificationBar({onClose}){
   return(
     <div style={{background:"linear-gradient(90deg,#fce7f3,#f0eee9)",borderBottom:"1px solid #d9d4cc",padding:"8px 20px",display:"flex",alignItems:"center",justifyContent:"center",gap:12,position:"relative"}}>
@@ -1201,166 +1139,44 @@ function NotificationBar({onClose}){
   );
 }
 
-// ── Home Landing Page ──
 const FEATURES=[
-  {id:"xp",   icon:"✨",title:"실시간 XP 환산",  desc:"학습 완료 즉시 XP가 오르는 애니메이션 모드. 공부를 퀘스트 보상처럼 느끼게 합니다.",
-   visual:(
-    <div style={{padding:20}}>
-      <div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0",marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>D+Puzzle Lv.3 — 68%</div>
-        <div style={{background:"#e2e8f0",height:10,borderRadius:99,overflow:"hidden"}}>
-          <div style={{width:"68%",height:"100%",background:"linear-gradient(90deg,#d9d4cc,#ec4899)",borderRadius:99,boxShadow:"0 0 8px rgba(236,72,153,0.5)",animation:"xpGlow 1.5s ease-in-out infinite alternate"}}/>
-        </div>
-        <style>{`@keyframes xpGlow{from{opacity:0.7;box-shadow:0 0 4px rgba(236,72,153,0.3)}to{opacity:1;box-shadow:0 0 16px rgba(236,72,153,0.7)}}`}</style>
-      </div>
-      <div style={{display:"flex",gap:8}}>
-        {[{l:"수학 30분",xp:"+20 XP",done:true},{l:"영단어 20개",xp:"+15 XP",done:false}].map((q,i)=>(
-          <div key={i} style={{flex:1,background:q.done?"#f0fdf4":"#f8fafc",borderRadius:10,padding:"10px 12px",border:`1px solid ${q.done?"#86efac":"#e2e8f0"}`}}>
-            <div style={{fontSize:11,fontWeight:600,color:q.done?"#15803d":"#334155"}}>{q.l}</div>
-            <div style={{fontSize:10,color:"#a05070",marginTop:2}}>{q.xp}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-   )},
-  {id:"note",  icon:"📝",title:"스마트 성장 노트", desc:"볼드/색상 편집부터 엔트리 접기까지, 복잡한 내용을 체계적으로 정리하는 맞춤형 공간.",
-   visual:(
-    <div style={{padding:20}}>
-      <div style={{background:"white",borderRadius:14,padding:14,border:"1px solid #e2e8f0"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#334155",marginBottom:8}}>📓 수학 — 미적분 노트</div>
-        <div style={{fontSize:13,lineHeight:1.9,color:"#334155"}}>
-          <span style={{fontWeight:800}}>극한의 정의:</span> lim f(x) = L<br/>
-          <span style={{color:"#a05070"}}>연속 함수</span>의 조건은 세 가지...<br/>
-          <span style={{background:"#fef9c3",padding:"1px 4px",borderRadius:4}}>★ 시험 출제 포인트!</span>
-        </div>
-        <div style={{marginTop:10,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6}}>
-          <span>∧ 접기</span><span style={{color:"#c0bab2"}}>|</span><span>2번 항목 (접힘)</span>
-        </div>
-      </div>
-    </div>
-   )},
-  {id:"streak",icon:"🔥",title:"연속 기록(스트릭)", desc:"멈추지 않는 성장의 증거. 기록이 끊기지 않도록 AI 가이드가 실시간으로 관리해 줍니다.",
-   visual:(
-    <div style={{padding:20}}>
-      <div style={{background:"linear-gradient(135deg,#fffbeb,#fef3c7)",borderRadius:14,padding:16,border:"1px solid #fde68a",textAlign:"center"}}>
-        <div style={{fontSize:48,marginBottom:4,animation:"flicker 0.8s ease-in-out infinite alternate"}}>🔥</div>
-        <style>{`@keyframes flicker{from{transform:scale(1)}to{transform:scale(1.12)}}`}</style>
-        <div style={{fontSize:22,fontWeight:800,color:"#92400e"}}>7일 연속!</div>
-        <div style={{marginTop:12,background:"#fff7ed",borderRadius:10,padding:"10px 14px",border:"1px solid #fed7aa",fontSize:13,color:"#c2410c"}}>
-          😤 AI: "기록을 지켜주세요! 오늘 학습 안 하면 XP 차감됩니다."
-        </div>
-      </div>
-    </div>
-   )},
-  {id:"report",icon:"📊",title:"월간 성장 리포트", desc:"지난달 대비 성장률과 등급 변화를 시각적으로 대조하여 명확한 피드백을 제공합니다.",
-   visual:(
-    <div style={{padding:20}}>
-      <div style={{background:"white",borderRadius:14,padding:14,border:"1px solid #e2e8f0"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <span style={{fontSize:13,fontWeight:700,color:"#334155"}}>이번 달 성장</span>
-          <span style={{fontSize:12,fontWeight:800,color:"#22c55e"}}>+45% ↑</span>
-        </div>
-        <div style={{display:"flex",gap:8,marginBottom:10}}>
-          {["Bronze","Gold"].map((r,i)=>(
-            <div key={r} style={{flex:1,textAlign:"center",padding:"10px",borderRadius:10,background:i===0?"#f1f5f9":"#fffbeb",border:`1px solid ${i===0?"#e2e8f0":"#fde68a"}`}}>
-              <div style={{fontSize:20}}>{i===0?"🥉":"🥇"}</div>
-              <div style={{fontSize:11,fontWeight:700,color:i===0?"#64748b":"#b45309",marginTop:2}}>{r}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:8,border:"1px solid #86efac"}}>
-          <span style={{fontSize:16}}>🎊</span>
-          <span style={{fontSize:11,color:"#15803d"}}>Bronze → Gold 등급 상승!</span>
-        </div>
-      </div>
-    </div>
-   )},
-  {id:"ai",    icon:"🤖",title:"AI 페이스메이커",  desc:"축하, 경고, 요약 멘트까지. 외롭지 않은 공부를 위해 상황에 맞게 반응하는 가이드.",
-   visual:(
-    <div style={{padding:20}}>
-      <div style={{background:"linear-gradient(135deg,#fdf4ff,#eff6ff)",borderRadius:14,padding:14,border:"1px solid #ece8e2"}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>🤖 AI 가이드</div>
-        {[
-          {icon:"🎉",msg:"레벨업 달성! 정말 대단해요! 이 기세로 계속 go!",bg:"#f0fdf4",bc:"#86efac"},
-          {icon:"😤",msg:"오늘 퀘스트 아직 안 했어요. 10분만 시작해볼까요?",bg:"#fffbeb",bc:"#fde68a"},
-          {icon:"😊",msg:"오늘도 잘게 성장해요! 퀘스트를 완료해보세요.",bg:"#eff6ff",bc:"#bfdbfe"},
-        ].map((m,i)=>(
-          <div key={i} style={{display:"flex",gap:8,alignItems:"flex-start",padding:"7px 10px",borderRadius:8,background:m.bg,border:`1px solid ${m.bc}`,marginBottom:6}}>
-            <span style={{fontSize:16,flexShrink:0}}>{m.icon}</span>
-            <span style={{fontSize:11,color:"#334155",lineHeight:1.5}}>{m.msg}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-   )},
+  {id:"xp",icon:"✨",title:"실시간 XP 환산",desc:"학습 완료 즉시 XP가 오르는 애니메이션 모드. 공부를 퀘스트 보상처럼 느끼게 합니다.",
+   visual:(<div style={{padding:20}}><div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0",marginBottom:12}}><div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>D+Puzzle Lv.3 — 68%</div><div style={{background:"#e2e8f0",height:10,borderRadius:99,overflow:"hidden"}}><div style={{width:"68%",height:"100%",background:"linear-gradient(90deg,#d9d4cc,#ec4899)",borderRadius:99,boxShadow:"0 0 8px rgba(236,72,153,0.5)",animation:"xpGlow 1.5s ease-in-out infinite alternate"}}/></div><style>{`@keyframes xpGlow{from{opacity:0.7;box-shadow:0 0 4px rgba(236,72,153,0.3)}to{opacity:1;box-shadow:0 0 16px rgba(236,72,153,0.7)}}`}</style></div><div style={{display:"flex",gap:8}}>{[{l:"수학 30분",xp:"+20 XP",done:true},{l:"영단어 20개",xp:"+15 XP",done:false}].map((q,i)=>(<div key={i} style={{flex:1,background:q.done?"#f0fdf4":"#f8fafc",borderRadius:10,padding:"10px 12px",border:`1px solid ${q.done?"#86efac":"#e2e8f0"}`}}><div style={{fontSize:11,fontWeight:600,color:q.done?"#15803d":"#334155"}}>{q.l}</div><div style={{fontSize:10,color:"#a05070",marginTop:2}}>{q.xp}</div></div>))}</div></div>)},
+  {id:"note",icon:"📝",title:"스마트 성장 노트",desc:"볼드/색상 편집부터 엔트리 접기까지, 복잡한 내용을 체계적으로 정리하는 맞춤형 공간.",
+   visual:(<div style={{padding:20}}><div style={{background:"white",borderRadius:14,padding:14,border:"1px solid #e2e8f0"}}><div style={{fontSize:12,fontWeight:700,color:"#334155",marginBottom:8}}>📓 수학 — 미적분 노트</div><div style={{fontSize:13,lineHeight:1.9,color:"#334155"}}><span style={{fontWeight:800}}>극한의 정의:</span> lim f(x) = L<br/><span style={{color:"#a05070"}}>연속 함수</span>의 조건은 세 가지...<br/><span style={{background:"#fef9c3",padding:"1px 4px",borderRadius:4}}>★ 시험 출제 포인트!</span></div><div style={{marginTop:10,padding:"6px 10px",background:"#f8fafc",borderRadius:8,fontSize:11,color:"#94a3b8",display:"flex",alignItems:"center",gap:6}}><span>∧ 접기</span><span style={{color:"#c0bab2"}}>|</span><span>2번 항목 (접힘)</span></div></div></div>)},
+  {id:"streak",icon:"🔥",title:"연속 기록(스트릭)",desc:"멈추지 않는 성장의 증거. 기록이 끊기지 않도록 AI 가이드가 실시간으로 관리해 줍니다.",
+   visual:(<div style={{padding:20}}><div style={{background:"linear-gradient(135deg,#fffbeb,#fef3c7)",borderRadius:14,padding:16,border:"1px solid #fde68a",textAlign:"center"}}><div style={{fontSize:48,marginBottom:4,animation:"flicker 0.8s ease-in-out infinite alternate"}}>🔥</div><style>{`@keyframes flicker{from{transform:scale(1)}to{transform:scale(1.12)}}`}</style><div style={{fontSize:22,fontWeight:800,color:"#92400e"}}>7일 연속!</div><div style={{marginTop:12,background:"#fff7ed",borderRadius:10,padding:"10px 14px",border:"1px solid #fed7aa",fontSize:13,color:"#c2410c"}}>😤 AI: "기록을 지켜주세요! 오늘 학습 안 하면 XP 차감됩니다."</div></div></div>)},
+  {id:"report",icon:"📊",title:"월간 성장 리포트",desc:"지난달 대비 성장률과 등급 변화를 시각적으로 대조하여 명확한 피드백을 제공합니다.",
+   visual:(<div style={{padding:20}}><div style={{background:"white",borderRadius:14,padding:14,border:"1px solid #e2e8f0"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><span style={{fontSize:13,fontWeight:700,color:"#334155"}}>이번 달 성장</span><span style={{fontSize:12,fontWeight:800,color:"#22c55e"}}>+45% ↑</span></div><div style={{display:"flex",gap:8,marginBottom:10}}>{["Bronze","Gold"].map((r,i)=>(<div key={r} style={{flex:1,textAlign:"center",padding:"10px",borderRadius:10,background:i===0?"#f1f5f9":"#fffbeb",border:`1px solid ${i===0?"#e2e8f0":"#fde68a"}`}}><div style={{fontSize:20}}>{i===0?"🥉":"🥇"}</div><div style={{fontSize:11,fontWeight:700,color:i===0?"#64748b":"#b45309",marginTop:2}}>{r}</div></div>))}</div><div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f0fdf4",borderRadius:8,border:"1px solid #86efac"}}><span style={{fontSize:16}}>🎊</span><span style={{fontSize:11,color:"#15803d"}}>Bronze → Gold 등급 상승!</span></div></div></div>)},
+  {id:"ai",icon:"🤖",title:"AI 페이스메이커",desc:"축하, 경고, 요약 멘트까지. 외롭지 않은 공부를 위해 상황에 맞게 반응하는 가이드.",
+   visual:(<div style={{padding:20}}><div style={{background:"linear-gradient(135deg,#fdf4ff,#eff6ff)",borderRadius:14,padding:14,border:"1px solid #ece8e2"}}><div style={{fontSize:13,fontWeight:700,color:"#334155",marginBottom:8}}>🤖 AI 가이드</div>{[{icon:"🎉",msg:"레벨업 달성! 정말 대단해요! 이 기세로 계속 go!",bg:"#f0fdf4",bc:"#86efac"},{icon:"😤",msg:"오늘 퀘스트 아직 안 했어요. 10분만 시작해볼까요?",bg:"#fffbeb",bc:"#fde68a"},{icon:"😊",msg:"오늘도 잘게 성장해요! 퀘스트를 완료해보세요.",bg:"#eff6ff",bc:"#bfdbfe"}].map((m,i)=>(<div key={i} style={{display:"flex",gap:8,alignItems:"flex-start",padding:"7px 10px",borderRadius:8,background:m.bg,border:`1px solid ${m.bc}`,marginBottom:6}}><span style={{fontSize:16,flexShrink:0}}>{m.icon}</span><span style={{fontSize:11,color:"#334155",lineHeight:1.5}}>{m.msg}</span></div>))}</div></div>)},
 ];
 
-function HomePage({onStart, onLogin}){
+function HomePage({onStart,onLogin}){
   const [activeFeat,setActiveFeat]=useState("xp");
   const feat=FEATURES.find(f=>f.id===activeFeat)||FEATURES[0];
   return(
     <div style={{fontFamily:"'Noto Sans KR',sans-serif",background:"#ffffff"}}>
-      {/* Hero */}
       <div style={{background:"#faeaf2",padding:"96px 20px 80px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-        {/* Very subtle warm blobs — barely visible */}
         <div style={{position:"absolute",top:-120,left:"5%",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(160,80,112,0.04) 0%,transparent 70%)",pointerEvents:"none"}}/>
         <div style={{position:"absolute",bottom:-140,right:"5%",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(160,80,112,0.03) 0%,transparent 70%)",pointerEvents:"none"}}/>
-
         <div style={{position:"relative",maxWidth:640,margin:"0 auto"}}>
-          {/* Badge */}
-          <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#f2d8ea",border:"1px solid #e8e8ec",borderRadius:20,padding:"5px 15px",fontSize:12,color:"#666666",fontWeight:600,marginBottom:32}}>
-            ✦ 학습을 게임처럼, 성장을 수집처럼
-          </div>
-
-          {/* Headline — dark, no heavy gradient */}
-          <h1 style={{fontSize:52,fontWeight:900,color:"#2d0a1a",lineHeight:1.15,marginBottom:20,letterSpacing:"-1.5px"}}>
-            마침내,<br/>
-            <span style={{color:"#a05070"}}>성장이 수집됩니다.</span>
-          </h1>
-
-          {/* Subtext */}
-          <p style={{fontSize:15,color:"#8a5068",lineHeight:1.9,marginBottom:44,maxWidth:460,margin:"0 auto 44px"}}>
-            공부 시간을 경험치(XP)로, 학습 기록을 레벨(Level)로.<br/>
-            당신의 모든 노력이 수치로 증명되는 유일한 공간.
-          </p>
-
-          {/* CTAs */}
+          <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#f2d8ea",border:"1px solid #e8e8ec",borderRadius:20,padding:"5px 15px",fontSize:12,color:"#666666",fontWeight:600,marginBottom:32}}>✦ 학습을 게임처럼, 성장을 수집처럼</div>
+          <h1 style={{fontSize:52,fontWeight:900,color:"#2d0a1a",lineHeight:1.15,marginBottom:20,letterSpacing:"-1.5px"}}>마침내,<br/><span style={{color:"#a05070"}}>성장이 수집됩니다.</span></h1>
+          <p style={{fontSize:15,color:"#8a5068",lineHeight:1.9,marginBottom:44,maxWidth:460,margin:"0 auto 44px"}}>공부 시간을 경험치(XP)로, 학습 기록을 레벨(Level)로.<br/>당신의 모든 노력이 수치로 증명되는 유일한 공간.</p>
           <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
-            <button onClick={onStart} style={{
-              background:"#a05070",color:"white",border:"none",
-              padding:"13px 32px",borderRadius:11,fontSize:15,fontWeight:700,
-              cursor:"pointer",fontFamily:"inherit",
-              boxShadow:"0 2px 14px rgba(160,80,112,0.15)",
-              letterSpacing:"-0.2px",
-            }}>
-              무료로 시작하기 →
-            </button>
-            <button onClick={onLogin} style={{
-              background:"white",color:"#333344",
-              border:"1.5px solid #e0e0e8",
-              padding:"13px 28px",borderRadius:11,fontSize:15,fontWeight:600,
-              cursor:"pointer",fontFamily:"inherit",
-            }}>
-              로그인
-            </button>
+            <button onClick={onStart} style={{background:"#a05070",color:"white",border:"none",padding:"13px 32px",borderRadius:11,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 2px 14px rgba(160,80,112,0.15)",letterSpacing:"-0.2px"}}>무료로 시작하기 →</button>
+            <button onClick={onLogin} style={{background:"white",color:"#333344",border:"1.5px solid #e0e0e8",padding:"13px 28px",borderRadius:11,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>로그인</button>
           </div>
         </div>
       </div>
-
-      {/* Stats strip */}
       <div style={{background:"#f5e0ec",borderTop:"1px solid #e8c8d8",borderBottom:"1px solid #e8c8d8",padding:"22px 20px"}}>
         <div style={{maxWidth:860,margin:"0 auto",display:"flex",justifyContent:"center",gap:56}}>
           {[["🎯","퀘스트 완료","매일 달성"],["⚡","XP 시스템","자동 적립"],["🏆","등급 4단계","Bronze ~ Premium"],["🤖","AI 가이드","상황 인식"]].map(([ic,t,s],i)=>(
-            <div key={i} style={{textAlign:"center"}}>
-              <div style={{fontSize:20,marginBottom:5}}>{ic}</div>
-              <div style={{fontSize:12,fontWeight:700,color:"#2d0a1a"}}>{t}</div>
-              <div style={{fontSize:11,color:"#b07090",marginTop:1}}>{s}</div>
-            </div>
+            <div key={i} style={{textAlign:"center"}}><div style={{fontSize:20,marginBottom:5}}>{ic}</div><div style={{fontSize:12,fontWeight:700,color:"#2d0a1a"}}>{t}</div><div style={{fontSize:11,color:"#b07090",marginTop:1}}>{s}</div></div>
           ))}
         </div>
       </div>
-
-      {/* ── Brand Story Section ── */}
       <div style={{background:"white",padding:"64px 20px",textAlign:"center"}}>
         <div style={{maxWidth:640,margin:"0 auto"}}>
           <div style={{display:"inline-block",background:"#faeaf2",borderRadius:16,padding:"10px 24px",marginBottom:24}}>
@@ -1368,27 +1184,14 @@ function HomePage({onStart, onLogin}){
             <span style={{fontSize:26,fontWeight:900,color:"#c07090",letterSpacing:"-0.5px"}}>+</span>
             <span style={{fontSize:26,fontWeight:900,color:"#a05070",letterSpacing:"-0.5px"}}>Puzzle</span>
           </div>
-          <p style={{fontSize:18,fontWeight:700,color:"#3a1a28",lineHeight:1.7,letterSpacing:"-0.3px"}}>
-            오늘의 할 일, 내일의 할 일,
-          </p>
-          <p style={{fontSize:18,fontWeight:700,color:"#a05070",lineHeight:1.7,letterSpacing:"-0.3px",marginBottom:16}}>
-            하루하루 한 조각의 지식으로 완성해보세요!
-          </p>
-          <p style={{fontSize:13.5,color:"#9a7a8a",lineHeight:1.9,maxWidth:480,margin:"0 auto"}}>
-            <b style={{color:"#a05070"}}>D</b>는 <b style={{color:"#a05070"}}>Daily</b>(매일)과 <b style={{color:"#a05070"}}>Day</b>(하루)를, <b style={{color:"#a05070"}}>Puzzle</b>은 한 조각씩 맞춰가는 성장을 의미해요.<br/>
-            매일 하루하루, 퍼즐을 완성하듯 당신의 지식을 쌓아가세요.
-          </p>
+          <p style={{fontSize:18,fontWeight:700,color:"#3a1a28",lineHeight:1.7,letterSpacing:"-0.3px"}}>오늘의 할 일, 내일의 할 일,</p>
+          <p style={{fontSize:18,fontWeight:700,color:"#a05070",lineHeight:1.7,letterSpacing:"-0.3px",marginBottom:16}}>하루하루 한 조각의 지식으로 완성해보세요!</p>
+          <p style={{fontSize:13.5,color:"#9a7a8a",lineHeight:1.9,maxWidth:480,margin:"0 auto"}}><b style={{color:"#a05070"}}>D</b>는 <b style={{color:"#a05070"}}>Daily</b>(매일)과 <b style={{color:"#a05070"}}>Day</b>(하루)를, <b style={{color:"#a05070"}}>Puzzle</b>은 한 조각씩 맞춰가는 성장을 의미해요.<br/>매일 하루하루, 퍼즐을 완성하듯 당신의 지식을 쌓아가세요.</p>
           <div style={{display:"flex",justifyContent:"center",gap:12,marginTop:28,flexWrap:"wrap"}}>
-            {["📅 Daily","🧩 Puzzle","📈 Growth","✨ XP"].map((t,i)=>(
-              <span key={i} style={{background:"#faeaf2",color:"#a05070",padding:"6px 16px",borderRadius:20,fontSize:13,fontWeight:600,border:"1px solid #f0d0e0"}}>
-                {t}
-              </span>
-            ))}
+            {["📅 Daily","🧩 Puzzle","📈 Growth","✨ XP"].map((t,i)=>(<span key={i} style={{background:"#faeaf2",color:"#a05070",padding:"6px 16px",borderRadius:20,fontSize:13,fontWeight:600,border:"1px solid #f0d0e0"}}>{t}</span>))}
           </div>
         </div>
       </div>
-
-      {/* Feature showcase */}
       <div style={{maxWidth:940,margin:"64px auto",padding:"0 20px"}}>
         <div style={{textAlign:"center",marginBottom:44}}>
           <div style={{fontSize:11,fontWeight:700,color:"#b07090",letterSpacing:2.5,marginBottom:10,textTransform:"uppercase"}}>Core Features</div>
@@ -1396,22 +1199,14 @@ function HomePage({onStart, onLogin}){
           <p style={{fontSize:13.5,color:"#b07090"}}>항목을 클릭하면 기능을 미리 확인할 수 있어요</p>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,alignItems:"start"}}>
-          {/* Left tabs */}
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {FEATURES.map(f=>(
-              <button key={f.id} onClick={()=>setActiveFeat(f.id)} style={{
-                textAlign:"left",padding:"14px 18px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",
-                background:activeFeat===f.id?"#f2d8ea":"#f8e6f0",
-                boxShadow:"none",
-                borderLeft:activeFeat===f.id?"3px solid #a05070":"3px solid transparent",
-                transition:"all 0.15s",
-              }}>
+              <button key={f.id} onClick={()=>setActiveFeat(f.id)} style={{textAlign:"left",padding:"14px 18px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:activeFeat===f.id?"#f2d8ea":"#f8e6f0",borderLeft:activeFeat===f.id?"3px solid #a05070":"3px solid transparent",transition:"all 0.15s"}}>
                 <div style={{fontSize:13.5,fontWeight:700,color:activeFeat===f.id?"#a05070":"#555566"}}>{f.icon} {f.title}</div>
                 {activeFeat===f.id&&<div style={{fontSize:12,color:"#8a5068",marginTop:5,lineHeight:1.65}}>{f.desc}</div>}
               </button>
             ))}
           </div>
-          {/* Right preview */}
           <div style={{background:"white",borderRadius:16,boxShadow:"0 4px 24px rgba(0,0,0,0.07)",border:"1px solid #e8c8d8",overflow:"hidden",minHeight:300,transition:"all 0.25s"}}>
             <div style={{background:"#f2d8ea",borderBottom:"1px solid #e8c8d8",padding:"10px 16px",display:"flex",gap:6,alignItems:"center"}}>
               {["#ff6b6b","#ffd166","#06d6a0"].map((c,i)=><div key={i} style={{width:9,height:9,borderRadius:"50%",background:c,opacity:0.6}}/>)}
@@ -1421,22 +1216,17 @@ function HomePage({onStart, onLogin}){
           </div>
         </div>
       </div>
-
-      {/* Bottom CTA */}
       <div style={{background:"linear-gradient(160deg,#2d0a1a 0%,#3d1428 60%,#4a1e35 100%)",padding:"72px 20px",textAlign:"center"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#a05070",letterSpacing:2.5,marginBottom:14,textTransform:"uppercase"}}>Get Started Free</div>
         <h2 style={{fontSize:28,fontWeight:800,color:"white",marginBottom:12,letterSpacing:"-0.4px",lineHeight:1.3}}>지금 바로 성장을 시작하세요</h2>
         <p style={{fontSize:13.5,color:"rgba(255,255,255,0.42)",marginBottom:34}}>무료로 시작하고, 오늘 첫 XP를 획득해보세요 ✨</p>
-        <button onClick={onStart} style={{background:"#a05070",color:"white",border:"none",padding:"13px 38px",borderRadius:12,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(160,80,112,0.15)"}}>
-          무료로 시작하기 🚀
-        </button>
+        <button onClick={onStart} style={{background:"#a05070",color:"white",border:"none",padding:"13px 38px",borderRadius:12,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(160,80,112,0.15)"}}>무료로 시작하기 🚀</button>
       </div>
     </div>
   );
 }
 
-// ── Auth Modal ──
-function AuthModal({mode:initMode="login", accounts={}, onAuth, onClose}){
+function AuthModal({mode:initMode="login",accounts={},onAuth,onClose}){
   const [mode,setMode]=useState(initMode);
   const [email,setEmail]=useState("");
   const [pw,setPw]=useState("");
@@ -1473,14 +1263,11 @@ function AuthModal({mode:initMode="login", accounts={}, onAuth, onClose}){
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}} onClick={onClose}>
       <style>{`@keyframes authIn{from{transform:translateY(24px) scale(0.97);opacity:0}to{transform:none;opacity:1}}`}</style>
       <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:24,padding:"36px 40px",width:420,maxWidth:"92vw",boxShadow:"0 32px 80px rgba(160,80,112,0.15)",animation:"authIn 0.28s cubic-bezier(0.22,1,0.36,1)"}}>
-        {/* Logo + title */}
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{display:"inline-block",background:"#a05070",borderRadius:14,padding:"10px 18px",fontSize:18,fontWeight:900,color:"white",letterSpacing:"-0.3px",marginBottom:16}}>D+Puzzle</div>
           <div style={{fontSize:22,fontWeight:800,color:"#0f172a"}}>{mode==="login"?"다시 만나서 반가워요!":"성장을 시작해요 🌱"}</div>
           <div style={{fontSize:13,color:"#64748b",marginTop:6}}>{mode==="login"?"계속하려면 로그인하세요":"무료로 시작, 언제든 취소 가능"}</div>
         </div>
-
-        {/* Fields */}
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {mode==="signup"&&(
             <div>
@@ -1505,21 +1292,10 @@ function AuthModal({mode:initMode="login", accounts={}, onAuth, onClose}){
               onKeyDown={e=>e.key==="Enter"&&submit()}/>
           </div>
         </div>
-
-        {/* Error */}
         {err&&<div style={{marginTop:10,padding:"8px 12px",background:"#fff1f2",border:"1px solid #fecdd3",borderRadius:8,fontSize:12,color:"#be123c"}}>{err}</div>}
-
-        {/* Submit */}
-        <button onClick={submit} style={{
-          width:"100%",marginTop:20,padding:"13px",borderRadius:12,border:"none",
-          background:loading?"#e2e8f0":"#a05070",
-          color:loading?"#94a3b8":"white",fontSize:15,fontWeight:700,cursor:loading?"not-allowed":"pointer",
-          fontFamily:"inherit",boxShadow:loading?"none":"0 4px 16px rgba(160,80,112,0.15)",transition:"all 0.2s",
-        }}>
+        <button onClick={submit} style={{width:"100%",marginTop:20,padding:"13px",borderRadius:12,border:"none",background:loading?"#e2e8f0":"#a05070",color:loading?"#94a3b8":"white",fontSize:15,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
           {loading?"처리 중...":(mode==="login"?"로그인":"무료로 시작하기")}
         </button>
-
-        {/* Toggle */}
         <div style={{textAlign:"center",marginTop:20,fontSize:13,color:"#64748b"}}>
           {mode==="login"?"아직 계정이 없으신가요? ":"이미 계정이 있으신가요? "}
           <span onClick={()=>{setMode(m=>m==="login"?"signup":"login");setErr("");}} style={{color:"#a05070",fontWeight:700,cursor:"pointer"}}>
@@ -1531,13 +1307,9 @@ function AuthModal({mode:initMode="login", accounts={}, onAuth, onClose}){
   );
 }
 
-// ── Root ──
 export default function BlueMind(){
   const [tab,setTab]=useState("home");
-
-  // ── Load persisted state from localStorage on mount ──
   const loadLS=(key,fallback)=>{try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}catch{return fallback;}};
-
   const [xp,setXP]=useState(()=>loadLS("bm_xp",0));
   const [stats,setStats]=useState(()=>loadLS("bm_stats",{streak:0,questsDone:0,studySecs:0,entries:0,weeklyXP:[0,0,0,0,0,0,0],weeklyMins:[0,0,0,0,0,0,0],lastActiveDate:null,missedDays:0}));
   const [celebration,setCelebration]=useState(null);
@@ -1552,16 +1324,12 @@ export default function BlueMind(){
   const prevXP=useRef(0);
   const prevBadges=useRef([]);
 
-  // ── Persist to localStorage whenever state changes ──
   useEffect(()=>{try{localStorage.setItem("bm_xp",JSON.stringify(xp));}catch{}},[xp]);
   useEffect(()=>{try{localStorage.setItem("bm_stats",JSON.stringify(stats));}catch{}},[stats]);
   useEffect(()=>{try{localStorage.setItem("bm_profile",JSON.stringify(profile));}catch{}},[profile]);
   useEffect(()=>{try{localStorage.setItem("bm_loggedIn",JSON.stringify(loggedIn));}catch{}},[loggedIn]);
   useEffect(()=>{try{localStorage.setItem("bm_accounts",JSON.stringify(accounts));}catch{}},[accounts]);
-
-  // Auto-navigate: if already logged in, skip home
   useEffect(()=>{if(loggedIn) setTab("dashboard");},[]);
-
 
   const handleAuth=({email,name,pw,mode})=>{
     if(mode==="signup"){
@@ -1599,8 +1367,6 @@ export default function BlueMind(){
 
   const lvl=getLvl(xp),rank=getRank(xp);
   const isHome=tab==="home";
-
-  // Nav tabs: home page shows only 홈; after login shows all
   const navTabs=isHome?[]:[{id:"dashboard",label:"대시보드"},{id:"note",label:"노트"}];
 
   return(
@@ -1613,33 +1379,16 @@ export default function BlueMind(){
         @keyframes xpPing{0%{box-shadow:0 0 0 0 rgba(236,72,153,0.5)}70%{box-shadow:0 0 0 8px rgba(236,72,153,0)}100%{box-shadow:0 0 0 0 rgba(236,72,153,0)}}
         @keyframes slideRight{from{width:0;opacity:1}to{width:100%;opacity:0}}
         html{-webkit-text-size-adjust:100%}
-        /* Mobile responsive */
-        @media(max-width:768px){
-          .dash-grid{grid-template-columns:1fr !important}
-          .badge-grid{grid-template-columns:repeat(3,1fr) !important}
-          .stat-grid{grid-template-columns:repeat(2,1fr) !important}
-          .rank-grid{grid-template-columns:repeat(2,1fr) !important}
-          .chart-grid{grid-template-columns:1fr !important}
-          .feature-grid{grid-template-columns:1fr !important}
-          .stats-strip{gap:24px !important;flex-wrap:wrap !important}
-          .hero-h1{font-size:32px !important}
-          .hero-sub{font-size:13px !important}
-        }
-        @media(max-width:480px){
-          .badge-grid{grid-template-columns:repeat(3,1fr) !important}
-        }
+        @media(max-width:768px){.dash-grid{grid-template-columns:1fr !important}.badge-grid{grid-template-columns:repeat(3,1fr) !important}.stat-grid{grid-template-columns:repeat(2,1fr) !important}.rank-grid{grid-template-columns:repeat(2,1fr) !important}.chart-grid{grid-template-columns:1fr !important}.feature-grid{grid-template-columns:1fr !important}.stats-strip{gap:24px !important;flex-wrap:wrap !important}.hero-h1{font-size:32px !important}.hero-sub{font-size:13px !important}}
+        @media(max-width:480px){.badge-grid{grid-template-columns:repeat(3,1fr) !important}}
       `}</style>
 
       {showNotifBar&&<NotificationBar onClose={()=>setShowNotifBar(false)}/>}
       {showConfetti&&<Confetti/>}
 
-      {/* ── Nav ── */}
       <nav style={{background:"rgba(255,255,255,0.95)",backdropFilter:"blur(12px)",borderBottom:"1px solid rgba(0,0,0,0.06)",position:"sticky",top:0,zIndex:100}}>
         <div style={{maxWidth:1160,margin:"0 auto",padding:"0 24px",height:60,display:"flex",alignItems:"center",gap:24}}>
-          {/* Logo */}
           <button onClick={()=>setTab("home")} style={{background:"#a05070",color:"white",fontWeight:900,fontSize:15,padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit",letterSpacing:"-0.3px"}}>D+Puzzle</button>
-
-          {/* Inner tabs (only when logged in) */}
           {!isHome&&(
             <div style={{display:"flex",gap:2}}>
               {navTabs.map(t=>(
@@ -1647,26 +1396,16 @@ export default function BlueMind(){
               ))}
             </div>
           )}
-
           <div style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"center"}}>
-            {/* Home nav: login + signup */}
             {isHome&&<>
-              <button onClick={()=>setAuthModal("login")} style={{padding:"8px 20px",borderRadius:10,border:"1.5px solid #e5e7eb",background:"white",fontSize:13.5,fontWeight:600,cursor:"pointer",color:"#111827",fontFamily:"inherit",transition:"all 0.15s"}}>로그인</button>
-              <button onClick={()=>setAuthModal("signup")} style={{padding:"8px 20px",borderRadius:10,border:"none",background:"#a05070",fontSize:13.5,fontWeight:700,cursor:"pointer",color:"white",fontFamily:"inherit",boxShadow:"0 2px 12px rgba(160,80,112,0.15)"}}>무료로 시작하기</button>
+              <button onClick={()=>setAuthModal("login")} style={{padding:"8px 20px",borderRadius:10,border:"1.5px solid #e5e7eb",background:"white",fontSize:13.5,fontWeight:600,cursor:"pointer",color:"#111827",fontFamily:"inherit"}}>로그인</button>
+              <button onClick={()=>setAuthModal("signup")} style={{padding:"8px 20px",borderRadius:10,border:"none",background:"#a05070",fontSize:13.5,fontWeight:700,cursor:"pointer",color:"white",fontFamily:"inherit"}}>무료로 시작하기</button>
             </>}
-
-            {/* Logged-in stats */}
             {!isHome&&<>
               <div style={{background:"#fef2f2",color:"#dc2626",padding:"5px 11px",borderRadius:20,fontSize:12.5,display:"flex",alignItems:"center",gap:4,fontWeight:600}}>🔥 {stats.streak}일 연속</div>
               <div style={{background:"#fefce8",color:"#854d0e",padding:"5px 11px",borderRadius:20,fontSize:12.5,display:"flex",alignItems:"center",gap:4,fontWeight:600,animation:xpFlash?"xpPing 0.6s ease-out":"none"}}>⚡ {xp} XP</div>
               <div style={{background:rank.bg,color:rank.color,padding:"5px 11px",borderRadius:20,fontSize:12.5,border:`1px solid ${rank.border}`,display:"flex",alignItems:"center",gap:4,fontWeight:600}}>{rank.icon} Lv.{lvl.level} {rank.name}</div>
-              <button onClick={()=>setShowProfile(true)} style={{
-                display:"flex",alignItems:"center",gap:8,
-                background:"white",border:"1.5px solid #e8d9de",
-                borderRadius:22,padding:"4px 14px 4px 4px",
-                cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
-                height:38,lineHeight:1,
-              }}>
+              <button onClick={()=>setShowProfile(true)} style={{display:"flex",alignItems:"center",gap:8,background:"white",border:"1.5px solid #e8d9de",borderRadius:22,padding:"4px 14px 4px 4px",cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",height:38,lineHeight:1}}>
                 <AvatarImg src={profile.avatarSrc} size={28} border="1.5px solid #e0ccd4"/>
                 <span style={{fontSize:13,fontWeight:600,color:"#2d1a22",whiteSpace:"nowrap"}}>{profile.name}</span>
               </button>
@@ -1675,10 +1414,8 @@ export default function BlueMind(){
         </div>
       </nav>
 
-      {/* Flash line */}
       {tab==="dashboard"&&xpFlash&&<div style={{position:"fixed",top:60,left:0,right:0,height:3,background:"linear-gradient(90deg,#d9d4cc,#ec4899,#d9d4cc)",zIndex:99,animation:"slideRight 1s ease-out forwards"}}/>}
 
-      {/* Dashboard subtitle */}
       {tab==="dashboard"&&(
         <div style={{maxWidth:1160,margin:"0 auto",padding:"12px 24px 0"}}>
           <div style={{fontSize:12,color:"#9ca3af",fontWeight:500}}>Lv.{lvl.level} 대시보드</div>
@@ -1687,16 +1424,13 @@ export default function BlueMind(){
       )}
 
       <main style={{position:"relative"}}>
-        {/* Home — only rendered when on home tab */}
         {tab==="home" && <HomePage onStart={()=>setAuthModal("signup")} onLogin={()=>setAuthModal("login")}/>}
-
-        {/* Dashboard & Note stay mounted to preserve timer state — hidden with CSS */}
         {loggedIn && (
           <>
-            <div style={{display: tab==="dashboard"?"block":"none", maxWidth:960, margin:"0 auto", padding:"0 24px 48px"}}>
+            <div style={{display:tab==="dashboard"?"block":"none",maxWidth:960,margin:"0 auto",padding:"0 24px 48px"}}>
               <Dashboard xp={xp} onXPChange={setXP} stats={stats} setStats={setStats} xpFlash={xpFlash} activeTab={tab}/>
             </div>
-            <div style={{display: tab==="note"?"block":"none"}}>
+            <div style={{display:tab==="note"?"block":"none"}}>
               <NotePage onEntriesChange={n=>setStats(s=>({...s,entries:n}))}/>
             </div>
           </>
@@ -1708,23 +1442,13 @@ export default function BlueMind(){
         profile={profile}
         onSave={p=>setProfile(p)}
         onClose={()=>setShowProfile(false)}
-        onLogout={()=>{
-          setLoggedIn(false);
-          setTab("home");
-          setShowProfile(false);
-          try{localStorage.removeItem("bm_loggedIn");}catch{}
-        }}
+        onLogout={()=>{setLoggedIn(false);setTab("home");setShowProfile(false);try{localStorage.removeItem("bm_loggedIn");}catch{}}}
         onWithdraw={()=>{
-          ["bm_xp","bm_stats","bm_profile","bm_loggedIn","bm_accounts"].forEach(k=>{
-            try{localStorage.removeItem(k);}catch{}
-          });
-          setLoggedIn(false);
-          setAccounts({});
-          setXP(0);
+          ["bm_xp","bm_stats","bm_profile","bm_loggedIn","bm_accounts","bm_notebooks"].forEach(k=>{try{localStorage.removeItem(k);}catch{}});
+          setLoggedIn(false);setAccounts({});setXP(0);
           setStats({streak:0,questsDone:0,studySecs:0,entries:0,weeklyXP:[0,0,0,0,0,0,0],weeklyMins:[0,0,0,0,0,0,0],lastActiveDate:null,missedDays:0});
           setProfile({name:"학습자",avatarSrc:null,bio:"",goal:""});
-          setTab("home");
-          setShowProfile(false);
+          setTab("home");setShowProfile(false);
         }}
       />}
       {authModal&&<AuthModal mode={authModal} accounts={accounts} onAuth={handleAuth} onClose={()=>setAuthModal(null)}/>}
