@@ -484,38 +484,10 @@ function KoreanCalendar({ compact = false }) {
     return !!extra[`${y}-${mm}-${dd}`];
   };
 
-  const fetchTemp = async (y) => {
+const fetchTemp = (y) => {
     if (fetchedYears.current.has(y)) return;
     fetchedYears.current.add(y);
-    setFetchState("loading");
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          system: `당신은 한국 임시 공휴일 정보를 JSON으로만 반환하는 봇입니다.
-응답은 반드시 다음 형식의 JSON 배열만 출력하세요. 다른 텍스트, 마크다운, 설명은 절대 포함하지 마세요:
-[{"date":"YYYY-MM-DD","name":"공휴일 이름"}, ...]
-임시 공휴일이 없으면 빈 배열 []을 반환하세요.`,
-          messages: [{ role: "user", content: `${y}년 대한민국 임시 공휴일(정부 지정 임시공휴일, 대체공휴일 포함)을 웹에서 검색하고 JSON 배열로만 반환하세요. 설날·추석·법정 공휴일은 제외하고 임시·대체 공휴일만 포함하세요.` }]
-        })
-      });
-      const data = await res.json();
-      const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-      const match = text.match(/\[[\s\S]*?\]/);
-      if (match) {
-        const arr = JSON.parse(match[0]);
-        if (Array.isArray(arr) && arr.length > 0) {
-          const merged = {};
-          arr.forEach(({ date, name }) => { if (date && name) merged[date] = name; });
-          setExtra(prev => ({ ...prev, ...merged }));
-        }
-      }
-      setFetchState("done");
-    } catch (e) { setFetchState("error"); }
+    setFetchState("done");
   };
 
   useEffect(() => { fetchTemp(year); }, [year]);
