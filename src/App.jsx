@@ -1,4 +1,6 @@
+import React from "react";
 import { useState, useEffect, useRef } from "react";
+import { Analytics } from "@vercel/analytics/react" 
 
 const INIT_QUESTS = [
   { id: 1, label: "수학 30분 학습", baseXp: 20, suggestedMin: 30 },
@@ -1814,6 +1816,7 @@ export default function BlueMind(){
         }}/>}
       {authModal&&<AuthModal mode={authModal} accounts={accounts} onAuth={handleAuth} onClose={()=>setAuthModal(null)}/>}
       {showSettings&&<SettingsModal darkMode={darkMode} onDark={setDarkMode} onClose={()=>setShowSettings(false)}/>}
+<Analytics />
     </div>
   );
 }
