@@ -1,4 +1,3 @@
-import React from "react";
 import { useState, useEffect, useRef } from "react";
 
 const INIT_QUESTS = [
@@ -47,13 +46,48 @@ const RANKS=[
 const getLvl=function(xp){for(let i=LEVELS.length-1;i>=0;i--)if(xp>=LEVELS[i].minXP)return LEVELS[i];return LEVELS[0];};
 const getRank=function(xp){for(let i=RANKS.length-1;i>=0;i--)if(xp>=RANKS[i].minXP)return RANKS[i];return RANKS[0];};
 const fmt=function(s){return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");};
+const fmtMin=function(m){
+  if(m<60)return m+"분";
+  const h=Math.floor(m/60);
+  const rem=m%60;
+  return rem===0?h+"시간":h+"시간 "+rem+"분";
+};
 const loadLS=function(key,fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}catch{return fallback;}};
 
 // Default theme (pink) - dark/light only
-const getTheme=function(id,dark){
-  const p="#a05070";
+// ── Color utilities for widget tone system ──
+const hexToRgb=function(hex){
+  let h=(hex||"#a05070").replace("#","");
+  if(h.length===3)h=h.split("").map(function(c){return c+c;}).join("");
+  const n=parseInt(h,16);
+  return {r:(n>>16)&255,g:(n>>8)&255,b:n&255};
+};
+const mixColor=function(hex,target,ratio){
+  const a=hexToRgb(hex),b=hexToRgb(target);
+  const r=Math.round(a.r+(b.r-a.r)*ratio);
+  const g=Math.round(a.g+(b.g-a.g)*ratio);
+  const bl=Math.round(a.b+(b.b-a.b)*ratio);
+  return "rgb("+r+","+g+","+bl+")";
+};
+const getToneStyle=function(color,tone){
+  const c=color||"#a05070";
+  if(tone==="light")return {bg:mixColor(c,"#ffffff",0.90),border:mixColor(c,"#ffffff",0.68),text:"#334155",accent:c,solid:false};
+  if(tone==="dark")return {bg:mixColor(c,"#000000",0.18),border:mixColor(c,"#000000",0.34),text:"#ffffff",accent:"#ffffff",solid:true};
+  return {bg:mixColor(c,"#ffffff",0.76),border:mixColor(c,"#ffffff",0.44),text:"#334155",accent:c,solid:false};
+};
+const getCardStyle=function(color,tone){
+  const c=color||"#a05070";
+  if(tone==="light")return {bg:mixColor(c,"#ffffff",0.94),border:mixColor(c,"#ffffff",0.80),text:"#1e293b",sub:"#64748b"};
+  if(tone==="dark")return {bg:mixColor(c,"#000000",0.12),border:mixColor(c,"#000000",0.28),text:"#ffffff",sub:"rgba(255,255,255,0.7)"};
+  return {bg:mixColor(c,"#ffffff",0.86),border:mixColor(c,"#ffffff",0.58),text:"#1e293b",sub:"#64748b"};
+};
+
+const getTheme=function(id,dark,primaryColor){
+  const p=primaryColor||"#a05070";
+  const pl=p+"18";
+  const pb=p+"44";
   if(dark) return {p:p,pl:"#1e1e2e",pc:"#16213e",pb:"#2d2d4e",pt:"#e2e8f0",bg:"#0f0f1a",nav:"rgba(15,15,26,0.95)",text:"#e2e8f0",sub:"#94a3b8",card:"#1e1e2e",border:"#2d2d4e"};
-  return {p:p,pl:"#faeaf2",pc:"#fdf5f8",pb:"#f0d0e0",pt:"#3a1a28",bg:"#f4f6fb",nav:"rgba(255,255,255,0.95)",text:"#3a1a28",sub:"#64748b",card:"white",border:"#f0d0e0"};
+  return {p:p,pl:pl,pc:"#ffffff",pb:pb,pt:"#1a1a2e",bg:"#f4f6fb",nav:"rgba(255,255,255,0.95)",text:"#3a1a28",sub:"#64748b",card:"white",border:"#f0d0e0"};
 };
 
 // ── Draggable Streak Calendar Window ──
@@ -276,7 +310,7 @@ function NotePage({onEntriesChange}){
   const nb=notebooks.find(function(n){return n.id===selNb;});
   const chapter=nb&&nb.chapters.find(function(c){return c.id===selCh;});
   const page=chapter&&chapter.pages.find(function(p){return p.id===selPg;});
-  useEffect(function(){const t=notebooks.reduce(function(a,n){return a+n.chapters.reduce(function(b,c){return b+c.pages.reduce(function(d,p){return d+p.entries.length;},0);},0);},0);onEntriesChange(t);});
+  useEffect(function(){const t=notebooks.reduce(function(a,n){return a+n.chapters.reduce(function(b,c){return b+c.pages.reduce(function(d,p){return d+p.entries.length;},0);},0);},0);onEntriesChange(t);},[notebooks]);
   const saveNotebooks=function(){try{localStorage.setItem("bm_notebooks",JSON.stringify(notebooks));setSaveMsg("저장됨 ✓");setTimeout(function(){setSaveMsg("");},2000);}catch{setSaveMsg("저장 실패");}};
   const upNbs=function(fn){setNotebooks(fn);};
   const addNb=function(){if(!newNbName.trim())return;const n={id:Date.now(),name:newNbName.trim(),chapters:[]};upNbs(function(p){return p.concat([n]);});setSelNb(n.id);setSelCh(null);setSelPg(null);setNewNbName("");setAddingNb(false);};
@@ -329,7 +363,7 @@ function NotePage({onEntriesChange}){
 
 const SB=function(bg,color,bc){return {fontSize:11,background:bg,color:color,border:bc?"1px solid "+bc:"none",borderRadius:6,padding:"3px 10px",cursor:"pointer",fontFamily:"inherit"};};
 
-function QuestItem({quest,onStart,onPause,onResume,onUndo,onDelete,onEditMin,onEditLabel}){
+function QuestItem({quest,onStart,onPause,onResume,onUndo,onDelete,onEditMin,onEditLabel,tone}){
   const [editingMin,setEditingMin]=useState(false);
   const [localMin,setLocalMin]=useState(quest.userMin);
   const [editingLabel,setEditingLabel]=useState(false);
@@ -337,16 +371,17 @@ function QuestItem({quest,onStart,onPause,onResume,onUndo,onDelete,onEditMin,onE
   const done=quest.done,running=quest.running,secs=quest.secs,userMin=quest.userMin;
   const total=userMin*60;
   const pct=secs!==null?((total-secs)/total)*100:0;
+  const t=tone||{bg:"#f8fafc",border:"#e2e8f0",text:"#334155",accent:"#a05070",solid:false};
   return(
-    <div style={{background:done?"#f0fdf4":"#f8fafc",borderRadius:12,border:"1px solid "+(done?"#86efac":"#e2e8f0"),padding:"11px 13px",marginBottom:8,transition:"all 0.25s"}}>
+    <div style={{background:done?"#f0fdf4":t.bg,borderRadius:12,border:"1px solid "+(done?"#86efac":t.border),padding:"11px 13px",marginBottom:8,transition:"all 0.25s"}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:18,height:18,borderRadius:5,border:"2px solid "+(done?"#22c55e":pct>=90?"#a05070":"#cbd5e1"),background:done?"#22c55e":"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:pct>=90&&!done?"pointer":"default",boxShadow:pct>=90&&!done?"0 0 0 3px rgba(160,80,112,0.15)":"none"}} onClick={pct>=90&&!done?function(){onStart();}:undefined}>{done&&<span style={{color:"white",fontSize:10}}>✓</span>}</div>
-        {editingLabel&&!done?<input autoFocus value={localLabel} onChange={function(e){setLocalLabel(e.target.value);}} onBlur={function(){onEditLabel(localLabel.trim()||quest.label);setEditingLabel(false);}} onKeyDown={function(e){if(e.key==="Enter"){onEditLabel(localLabel.trim()||quest.label);setEditingLabel(false);}if(e.key==="Escape")setEditingLabel(false);}} style={{flex:1,border:"none",borderBottom:"1.5px solid #a05070",outline:"none",fontSize:13,background:"transparent",fontFamily:"inherit",padding:"1px 0"}}/>:<span onDoubleClick={function(){if(!done&&!running)setEditingLabel(true);}} title={done?"":"더블클릭하여 이름 수정"} style={{flex:1,fontSize:13,color:done?"#94a3b8":"#334155",textDecoration:done?"line-through":"none",cursor:done||running?"default":"text"}}>{quest.label}</span>}
-        {!done&&(editingMin?<input type="number" value={localMin} min={1} max={300} autoFocus onChange={function(e){setLocalMin(Math.max(1,Number(e.target.value)||1));}} onBlur={function(){onEditMin(localMin);setEditingMin(false);}} onKeyDown={function(e){if(e.key==="Enter"){onEditMin(localMin);setEditingMin(false);}}} style={{width:52,padding:"2px 6px",border:"1px solid #a05070",borderRadius:6,fontSize:12,textAlign:"center",fontFamily:"inherit",outline:"none"}}/>:<span onClick={function(){if(!running&&!done)setEditingMin(true);}} title="클릭하여 시간 수정" style={{fontSize:12,color:"#a05070",background:"#eeece8",padding:"2px 8px",borderRadius:20,cursor:"pointer"}}>{userMin}분 ✎</span>)}
-        <span style={{fontSize:12,color:"#a05070",fontWeight:700}}>+{quest.baseXp} XP</span>
+        <div style={{width:18,height:18,borderRadius:5,border:"2px solid "+(done?"#22c55e":pct>=90?t.accent:"#cbd5e1"),background:done?"#22c55e":"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:pct>=90&&!done?"pointer":"default",boxShadow:pct>=90&&!done?"0 0 0 3px "+t.accent+"26":"none"}} onClick={pct>=90&&!done?function(){onStart();}:undefined}>{done&&<span style={{color:"white",fontSize:10}}>✓</span>}</div>
+        {editingLabel&&!done?<input autoFocus value={localLabel} onChange={function(e){setLocalLabel(e.target.value);}} onBlur={function(){onEditLabel(localLabel.trim()||quest.label);setEditingLabel(false);}} onKeyDown={function(e){if(e.key==="Enter"){onEditLabel(localLabel.trim()||quest.label);setEditingLabel(false);}if(e.key==="Escape")setEditingLabel(false);}} style={{flex:1,border:"none",borderBottom:"1.5px solid "+t.accent,outline:"none",fontSize:13,background:"transparent",fontFamily:"inherit",padding:"1px 0"}}/>:<span onDoubleClick={function(){if(!done&&!running)setEditingLabel(true);}} title={done?"":"더블클릭하여 이름 수정"} style={{flex:1,fontSize:13,color:done?"#94a3b8":t.text,textDecoration:done?"line-through":"none",cursor:done||running?"default":"text"}}>{quest.label}</span>}
+        {!done&&(editingMin?<input type="number" value={localMin} min={1} max={300} autoFocus onChange={function(e){setLocalMin(e.target.value);}} onBlur={function(){const v=Math.max(1,Number(localMin)||1);onEditMin(v);setEditingMin(false);}} onKeyDown={function(e){if(e.key==="Enter"){const v=Math.max(1,Number(localMin)||1);onEditMin(v);setEditingMin(false);}}} style={{width:52,padding:"2px 6px",border:"1px solid "+t.accent,borderRadius:6,fontSize:12,textAlign:"center",fontFamily:"inherit",outline:"none"}}/>:<span onClick={function(){if(!running)setLocalMin(String(userMin));if(!running)setEditingMin(true);}} title="클릭하여 시간 수정" style={{fontSize:12,color:t.solid?t.text:t.accent,background:t.solid?"rgba(255,255,255,0.18)":"white",padding:"2px 8px",borderRadius:20,cursor:"pointer"}}>{fmtMin(userMin)} ✎</span>)}
+        <span style={{fontSize:12,color:t.solid?t.text:t.accent,fontWeight:700}}>+{quest.baseXp} XP</span>
         {!done&&!running&&<button onClick={onDelete} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:13,padding:"0 2px",lineHeight:1}}>🗑</button>}
       </div>
-      {!done&&(<div style={{marginTop:8}}><div style={{height:4,background:"#e2e8f0",borderRadius:9999}}><div style={{width:pct+"%",height:"100%",background:pct>=90?"#a05070":"linear-gradient(90deg,#1e1e1e,#3d3d3d)",borderRadius:9999,transition:"width 1s linear"}}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:5}}><span style={{fontSize:11,color:"#94a3b8"}}>{secs!==null?(pct>=90?"✓ 체크박스로 완료!":fmt(secs)+" 남음"):"목표 "+fmt(total)}</span><div style={{display:"flex",gap:5}}>{!running&&secs===null&&<button onClick={onStart} style={SB("#a05070","white")}>▶ 시작</button>}{running&&<button onClick={onPause} style={SB("#f1f5f9","#64748b","#e2e8f0")}>⏸ 일시정지</button>}{!running&&secs!==null&&secs>0&&<button onClick={onResume} style={SB("#a05070","white")}>▶ 재개</button>}</div></div></div>)}
+      {!done&&(<div style={{marginTop:8}}><div style={{height:4,background:t.solid?"rgba(255,255,255,0.25)":"#e2e8f0",borderRadius:9999}}><div style={{width:pct+"%",height:"100%",background:pct>=90?t.accent:(t.solid?"rgba(255,255,255,0.7)":"linear-gradient(90deg,#1e1e1e,#3d3d3d)"),borderRadius:9999,transition:"width 1s linear"}}/></div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:5}}><span style={{fontSize:11,color:t.solid?"rgba(255,255,255,0.75)":"#94a3b8"}}>{secs!==null?(pct>=90?"✓ 체크박스로 완료!":fmt(secs)+" 남음"):"목표 "+fmt(total)}</span><div style={{display:"flex",gap:5}}>{!running&&secs===null&&<button onClick={onStart} style={SB(t.accent,t.solid?"#1e293b":"white")}>▶ 시작</button>}{running&&<button onClick={onPause} style={SB("#f1f5f9","#64748b","#e2e8f0")}>⏸ 일시정지</button>}{!running&&secs!==null&&secs>0&&<button onClick={onResume} style={SB(t.accent,t.solid?"#1e293b":"white")}>▶ 재개</button>}</div></div></div>)}
       {done&&(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6}}><span style={{fontSize:11,color:"#22c55e",fontWeight:600}}>✓ 완료! +{quest.baseXp} XP 획득</span><button onClick={onUndo} style={{fontSize:11,background:"white",border:"1px solid #fecaca",borderRadius:6,padding:"2px 8px",cursor:"pointer",color:"#ef4444",fontFamily:"inherit"}}>↩ XP 취소</button></div>)}
     </div>
   );
@@ -417,9 +452,95 @@ function WeeklyBarChart(props){
 
 function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab,darkMode,onQuestsChange}){
   const th=getTheme("default",darkMode||false);
+  const [widgetColors,setWidgetColors]=useState(function(){
+    return loadLS("bm_widget_colors_v2",{
+      quest:{color:"#a05070",tone:"same"},
+      cal_ai:{color:"#a05070",tone:"same"},
+      badges:{color:"#a05070",tone:"same"},
+      report:{color:"#a05070",tone:"same"},
+    });
+  });
+  const setWColor=function(wid,patch){
+    setWidgetColors(function(prev){
+      const next=Object.assign({},prev);
+      next[wid]=Object.assign({},prev[wid],patch);
+      try{localStorage.setItem("bm_widget_colors_v2",JSON.stringify(next));}catch{}
+      return next;
+    });
+  };
+  const [showColorPicker,setShowColorPicker]=useState(null);
+
+  const COLOR_PRESETS=["#a05070","#e11d48","#ea580c","#ca8a04","#16a34a","#0284c7","#7c3aed","#0f766e","#1d4ed8","#db2777","#0f172a","#be185d"];
+  const TONES=[{id:"light",label:"연하게"},{id:"same",label:"똑같이"},{id:"dark",label:"진하게"}];
+
+  const WidgetHeader=function(props){
+    const wid=props.wid,emoji=props.emoji,title=props.title,extra=props.extra,cardText=props.cardText||"#334155";
+    const wc=widgetColors[wid]||{color:"#a05070",tone:"same"};
+    const previewTone=getToneStyle(wc.color,wc.tone);
+    const previewCard=getCardStyle(wc.color,wc.tone);
+    return(
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,position:"relative"}}>
+        <span draggable="true" onDragStart={function(e){e.stopPropagation();onDragStart(wid);}} onDragEnd={onDragEnd}
+          style={{fontSize:14,color:cardText==="#ffffff"?"rgba(255,255,255,0.6)":"#94a3b8",cursor:"grab",userSelect:"none",padding:"0 4px"}} title="드래그해서 순서 변경">⠿</span>
+        <span style={{fontSize:14,fontWeight:600,color:cardText}}>{emoji} {title}</span>
+        {extra}
+        <button
+          onMouseDown={function(e){e.stopPropagation();}}
+          onClick={function(e){e.stopPropagation();setShowColorPicker(showColorPicker===wid?null:wid);}}
+          style={{marginLeft:"auto",width:22,height:22,borderRadius:"50%",background:wc.color,border:"3px solid white",boxShadow:"0 1px 6px rgba(0,0,0,0.2)",cursor:"pointer",flexShrink:0}}
+          title="위젯 색상 변경"/>
+        {showColorPicker===wid&&(
+          <div
+            onMouseDown={function(e){e.stopPropagation();}}
+            onClick={function(e){e.stopPropagation();}}
+            style={{position:"absolute",top:30,right:0,background:"white",borderRadius:18,padding:"16px 18px",boxShadow:"0 8px 40px rgba(0,0,0,0.18)",border:"1px solid #f0d0e0",zIndex:9999,width:240}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:10}}>🎨 위젯 색상</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:10}}>
+              {COLOR_PRESETS.map(function(col){return(
+                <div key={col}
+                  onClick={function(){setWColor(wid,{color:col});}}
+                  style={{width:26,height:26,borderRadius:"50%",background:col,cursor:"pointer",border:wc.color===col?"3px solid #1e293b":"2px solid transparent",boxSizing:"border-box",transition:"transform 0.1s",transform:wc.color===col?"scale(1.2)":"scale(1)"}}/>
+              );})}
+            </div>
+            <input type="color" value={wc.color}
+              onChange={function(e){setWColor(wid,{color:e.target.value});}}
+              style={{width:"100%",height:30,borderRadius:8,border:"1px solid #e2e8f0",cursor:"pointer",padding:2,marginBottom:14}}/>
+
+            <div style={{fontSize:11,fontWeight:700,color:"#64748b",marginBottom:8}}>🧊 톤 선택 — 위젯 배경과 박스가 자동으로 맞춰져요</div>
+            <div style={{display:"flex",gap:6,marginBottom:12}}>
+              {TONES.map(function(t){
+                const active=wc.tone===t.id;
+                return(
+                  <button key={t.id} onClick={function(){setWColor(wid,{tone:t.id});}}
+                    style={{flex:1,padding:"6px 4px",borderRadius:9,border:"1.5px solid "+(active?wc.color:"#e2e8f0"),background:active?wc.color+"14":"white",color:active?wc.color:"#94a3b8",fontSize:11,fontWeight:active?700:500,cursor:"pointer",fontFamily:"inherit"}}>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* live preview: widget card bg + inner box together */}
+            <div style={{background:previewCard.bg,border:"1px solid "+previewCard.border,borderRadius:12,padding:8}}>
+              <div style={{fontSize:9,fontWeight:700,color:previewCard.text,marginBottom:6}}>위젯 배경 미리보기</div>
+              <div style={{background:previewTone.bg,border:"1px solid "+previewTone.border,borderRadius:9,padding:"7px 9px"}}>
+                <div style={{fontSize:10,color:previewTone.solid?previewTone.text:"#475569",fontWeight:600}}>미리보기 박스</div>
+                <div style={{fontSize:9,color:previewTone.solid?"rgba(255,255,255,0.75)":"#94a3b8",marginTop:2}}>이렇게 적용돼요</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
   const [quests,setQuests]=useState(function(){return INIT_QUESTS.map(function(q){return Object.assign({},q,{userMin:q.suggestedMin,secs:null,running:false,done:false});});});
   const [addingQ,setAddingQ]=useState(false);
   const [newQL,setNewQL]=useState("");
+  const addQuest=function(){
+    if(!newQL.trim())return;
+    setQuests(function(prev){return prev.concat([{id:Date.now(),label:newQL.trim(),baseXp:10,suggestedMin:15,userMin:15,secs:null,running:false,done:false}]);});
+    setNewQL("");
+    setAddingQ(false);
+  };
   const [praiseMsg,setPraiseMsg]=useState(null);
   useEffect(function(){if(onQuestsChange)onQuestsChange(quests);},[quests]);
   useEffect(function(){if(activeTab!=="dashboard"){setQuests(function(p){return p.map(function(q){return q.running?Object.assign({},q,{running:false}):q;});});}  },[activeTab]);
@@ -454,6 +575,97 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab,darkMode,onQu
   const handleUndo=function(qid,xpAmt,userMin){const today=new Date().getDay();upQ(qid,{done:false,secs:null,running:false});onXPChange(function(x){return Math.max(0,x-xpAmt);});setStats(function(s){const wXP=s.weeklyXP.slice();wXP[today]=Math.max(0,(wXP[today]||0)-xpAmt);const wM=s.weeklyMins.slice();wM[today]=Math.max(0,(wM[today]||0)-userMin);return Object.assign({},s,{questsDone:Math.max(0,s.questsDone-1),studySecs:Math.max(0,s.studySecs-userMin*60),weeklyXP:wXP,weeklyMins:wM});});};
   const deleteQuest=function(qid){setQuests(function(p){return p.filter(function(q){return q.id!==qid;});});};
   const today2=new Date().getDay();
+  // Widget order state (stored in localStorage)
+  const [widgetOrder,setWidgetOrder]=useState(function(){
+    return loadLS("bm_widget_order",["quest","cal_ai","badges","report"]);
+  });
+  const [dragOverId,setDragOverId]=useState(null);
+  const [dragId,setDragId]=useState(null);
+
+  const onDragStart=function(id){setDragId(id);};
+  const onDragOver=function(e,id){e.preventDefault();setDragOverId(id);};
+  const onDrop=function(id){
+    if(!dragId||dragId===id)return;
+    const order=widgetOrder.slice();
+    const fromIdx=order.indexOf(dragId);
+    const toIdx=order.indexOf(id);
+    order.splice(fromIdx,1);
+    order.splice(toIdx,0,dragId);
+    setWidgetOrder(order);
+    try{localStorage.setItem("bm_widget_order",JSON.stringify(order));}catch{}
+    setDragId(null);setDragOverId(null);
+  };
+  const onDragEnd=function(){setDragId(null);setDragOverId(null);};
+
+  const qTone=getToneStyle(widgetColors.quest.color,widgetColors.quest.tone);
+  const bTone=getToneStyle(widgetColors.badges.color,widgetColors.badges.tone);
+  const rTone=getToneStyle(widgetColors.report.color,widgetColors.report.tone);
+  const cTone=getToneStyle(widgetColors.cal_ai.color,widgetColors.cal_ai.tone);
+  const qCard=getCardStyle(widgetColors.quest.color,widgetColors.quest.tone);
+  const bCard=getCardStyle(widgetColors.badges.color,widgetColors.badges.tone);
+  const rCard=getCardStyle(widgetColors.report.color,widgetColors.report.tone);
+  const cCard=getCardStyle(widgetColors.cal_ai.color,widgetColors.cal_ai.tone);
+
+  const WIDGETS={
+    quest:(
+      <div key="quest"
+        onDragOver={function(e){e.preventDefault();setDragOverId("quest");}}
+        onDrop={function(){onDrop("quest");}}
+        onDragLeave={function(){setDragOverId(null);}}
+        style={{background:qCard.bg,borderRadius:20,padding:18,border:"2px solid "+(dragOverId==="quest"?widgetColors.quest.color:qCard.border),boxShadow:"0 2px 12px rgba(0,0,0,0.06)",transition:"border 0.15s, background 0.3s"}}>
+        <WidgetHeader wid="quest" emoji="🎯" title="오늘의 퀘스트" cardText={qCard.text} extra={<React.Fragment><span style={{fontSize:11,color:qTone.solid?qTone.accent:widgetColors.quest.color,background:widgetColors.quest.color+"18",padding:"2px 8px",borderRadius:20,marginLeft:4}}>{qDone}/{quests.length} 완료</span><button onClick={function(e){e.stopPropagation();setAddingQ(true);}} style={{border:"none",background:"#f1f5f9",width:22,height:22,borderRadius:6,cursor:"pointer",fontSize:14,fontFamily:"inherit",marginLeft:4}}>+</button></React.Fragment>}/>
+        {quests.map(function(q){return <QuestItem key={q.id} quest={q} tone={qTone} onStart={function(){upQ(q.id,{secs:q.userMin*60,running:true});}} onPause={function(){upQ(q.id,{running:false});}} onResume={function(){upQ(q.id,{running:true});}} onConfirm={function(){upQ(q.id,{secs:0,running:false,done:true,_justDone:true});}} onUndo={function(){handleUndo(q.id,q.baseXp,q.userMin);}} onDelete={function(){deleteQuest(q.id);}} onEditMin={function(m){upQ(q.id,{userMin:m,secs:null,running:false});}} onEditLabel={function(label){upQ(q.id,{label:label});}}/>;}) }
+        {addingQ&&(<div style={{marginTop:10,display:"flex",gap:6}}><input autoFocus value={newQL} onChange={function(e){setNewQL(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")addQuest();if(e.key==="Escape")setAddingQ(false);}} placeholder="퀘스트 이름..." style={{flex:1,padding:"6px 8px",border:"1px solid "+widgetColors.quest.color,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/><button onClick={addQuest} disabled={!newQL.trim()} style={{padding:"4px 12px",border:"none",background:newQL.trim()?widgetColors.quest.color:"#e2e8f0",color:newQL.trim()?"white":"#94a3b8",borderRadius:8,cursor:newQL.trim()?"pointer":"not-allowed",fontSize:12,fontWeight:600,fontFamily:"inherit"}}>추가</button><button onClick={function(){setAddingQ(false);setNewQL("");}} style={{padding:"4px 8px",border:"1px solid #e2e8f0",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>취소</button></div>)}
+        <div style={{marginTop:12,background:"#fffbeb",borderRadius:10,padding:"10px 12px",border:"1px solid #fde68a"}}><div style={{fontSize:11,fontWeight:600,color:"#f59e0b",marginBottom:4}}>💡 스마트 XP 계산 예시:</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 12px",fontSize:11,color:"#64748b"}}><span>• 50분 학습 → 20 XP</span><span>• 단어 20개 → 15 XP</span><span>• 오래 10개 → 10 XP</span><span>• 줄넘기 1회 → 10 XP</span></div></div>
+      </div>
+    ),
+    cal_ai:(
+      <div key="cal_ai"
+        onDragOver={function(e){e.preventDefault();setDragOverId("cal_ai");}}
+        onDrop={function(){onDrop("cal_ai");}}
+        onDragLeave={function(){setDragOverId(null);}}
+        style={{background:cCard.bg,borderRadius:20,padding:16,display:"flex",flexDirection:"column",gap:14,border:"2px solid "+(dragOverId==="cal_ai"?widgetColors.cal_ai.color:cCard.border),boxShadow:"0 2px 12px rgba(0,0,0,0.06)",transition:"border 0.15s, background 0.3s"}}>
+        <KoreanCalendar compact={true}/>
+        <div style={{background:aiCfg.bg,borderRadius:14,padding:14,border:"1px solid "+aiCfg.border}}>
+          <WidgetHeader wid="cal_ai" emoji="🤖" title="AI 가이드" cardText="#334155"/>
+          <div style={{display:"flex",gap:10,alignItems:"flex-start"}}><span style={{fontSize:22}}>{aiCfg.icon}</span><span style={{fontSize:13,color:"#334155",lineHeight:1.6}}>{aiCfg.msg}</span></div>
+          <div style={{display:"flex",gap:6,marginTop:10}}>{[{key:"warn",label:"⚠️ 경고"},{key:"xp",label:"✨ XP 팁"},{key:"basic",label:"🔆 기본"}].map(function(t){return <span key={t.key} style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:aiMode===t.key?"#fce8f0":"#f1f5f9",color:aiMode===t.key?"#9b3060":"#94a3b8",border:"1px solid "+(aiMode===t.key?"#f0b8d0":"#e2e8f0"),fontWeight:aiMode===t.key?600:400}}>{t.label}</span>;})}</div>
+        </div>
+      </div>
+    ),
+    badges:(
+      <div key="badges"
+        onDragOver={function(e){e.preventDefault();setDragOverId("badges");}}
+        onDrop={function(){onDrop("badges");}}
+        onDragLeave={function(){setDragOverId(null);}}
+        style={{background:bCard.bg,borderRadius:20,padding:18,border:"2px solid "+(dragOverId==="badges"?widgetColors.badges.color:bCard.border),boxShadow:"0 2px 12px rgba(0,0,0,0.06)",gridColumn:"1 / -1",transition:"border 0.15s, background 0.3s"}}>
+        <WidgetHeader wid="badges" emoji="🏅" title="배지 컬렉션" cardText={bCard.text} extra={<span style={{fontSize:11,color:bTone.solid?bTone.accent:widgetColors.badges.color,background:widgetColors.badges.color+"18",padding:"2px 8px",borderRadius:20,marginLeft:4}}>{earned.length}/{ALL_BADGES.length} 획득</span>}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10}}>
+          {ALL_BADGES.map(function(b){const ok=b.req(Object.assign({},stats,{xp:xp,level:lvl.level}));return(<div key={b.id} title={b.label} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{width:48,height:48,borderRadius:"50%",background:ok?bTone.bg:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,border:"2px solid "+(ok?bTone.border:"#e2e8f0"),filter:ok?"none":"grayscale(1) opacity(0.4)"}}>{b.emoji}</div><span style={{fontSize:9,color:ok?(bTone.solid?bTone.text:widgetColors.badges.color):"#94a3b8",textAlign:"center",lineHeight:1.2,fontWeight:ok?600:400}}>{b.label}</span></div>);})}
+        </div>
+      </div>
+    ),
+    report:(
+      <div key="report"
+        onDragOver={function(e){e.preventDefault();setDragOverId("report");}}
+        onDrop={function(){onDrop("report");}}
+        onDragLeave={function(){setDragOverId(null);}}
+        style={{background:rCard.bg,borderRadius:20,padding:18,border:"2px solid "+(dragOverId==="report"?widgetColors.report.color:rCard.border),boxShadow:"0 2px 12px rgba(0,0,0,0.06)",gridColumn:"1 / -1",transition:"border 0.15s, background 0.3s"}}>
+        <WidgetHeader wid="report" emoji="📊" title="월간 리포트" cardText={rCard.text} extra={<span style={{fontSize:12,color:rCard.sub,marginLeft:4}}>{new Date().getFullYear()}년 {new Date().getMonth()+1}월</span>}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>{[{icon:"⚡",label:"총 획득 XP",val:xp+" XP"},{icon:"⏱️",label:"총 학습 시간",val:fmtMin(Math.round(stats.studySecs/60))},{icon:"🔥",label:"연속 기록",val:stats.streak+"일"},{icon:"🏅",label:"획득 배지",val:earned.length+"개"}].map(function(s,i){return <div key={i} style={{background:rTone.bg,borderRadius:10,padding:12,display:"flex",flexDirection:"column",gap:4,border:"1px solid "+rTone.border}}><span style={{fontSize:18}}>{s.icon}</span><span style={{fontSize:11,color:rTone.solid?"rgba(255,255,255,0.8)":"#64748b"}}>{s.label}</span><span style={{fontSize:18,fontWeight:800,color:rTone.solid?rTone.text:"#1e293b"}}>{s.val}</span></div>;})}</div>
+        <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+          <WeeklyBarChart title="이번 주 획득 XP" barColor={widgetColors.report.color} data={stats.weeklyXP} unit="XP" todayIdx={new Date().getDay()}/>
+          <WeeklyBarChart title="이번 주 학습 시간" barColor={widgetColors.report.color} data={stats.weeklyMins} unit="분" todayIdx={new Date().getDay()}/>
+        </div>
+        <div style={{fontSize:13,fontWeight:600,color:rCard.text,marginBottom:10}}>🏆 월간 랭킹 기준</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>{RANKS.map(function(r){const cur2=getRank(xp).name===r.name;return(<div key={r.name} style={{borderRadius:12,padding:14,textAlign:"center",border:"2px solid "+(cur2?r.border:"#e2e8f0"),background:cur2?r.bg:"#f8fafc",opacity:xp>=r.minXP?1:0.5}}><div style={{fontSize:24}}>{r.icon}</div><div style={{fontWeight:700,color:r.color,marginTop:4}}>{r.name}</div><div style={{fontSize:11,color:"#64748b"}}>{r.minXP}+ XP</div>{cur2&&<div style={{fontSize:10,background:"#fde68a",color:"#92400e",padding:"2px 8px",borderRadius:20,fontWeight:600,marginTop:6,display:"inline-block"}}>현재 등급</div>}</div>);})}
+        </div>
+      </div>
+    ),
+  };
+  const topTwo=widgetOrder.filter(function(id){return id==="quest"||id==="cal_ai";});
+  const bottom=widgetOrder.filter(function(id){return id!=="quest"&&id!=="cal_ai";});
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14,paddingTop:10}}>
       {praiseMsg&&<div style={{position:"fixed",bottom:28,left:"50%",transform:"translateX(-50%)",background:th.p,color:"white",borderRadius:16,padding:"13px 24px",fontSize:14,fontWeight:600,zIndex:500,boxShadow:"0 8px 32px rgba(0,0,0,0.25)",whiteSpace:"nowrap",maxWidth:"90vw",textAlign:"center"}}>{praiseMsg}</div>}
@@ -462,23 +674,17 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab,darkMode,onQu
         <div style={{textAlign:"right"}}><div style={{fontSize:20,fontWeight:800,color:th.p}}>{Math.round(progress)}%</div><div style={{fontSize:11,color:"#94a3b8"}}>{xp} / {lvl.maxXP} XP</div></div>
       </div>
       <div style={{background:"#e2e8f0",height:8,borderRadius:9999,marginTop:-8}}><div style={{width:progress+"%",height:"100%",background:xpFlash?"linear-gradient(90deg,#d9d4cc,#ec4899,#d9d4cc)":"linear-gradient(90deg,"+th.p+","+th.p+"88)",borderRadius:9999,transition:"width 0.5s ease"}}/></div>
+      <div style={{fontSize:11,color:"#94a3b8",textAlign:"right"}}>⠿ 카드를 드래그해서 순서를 바꿀 수 있어요</div>
       <div className="dash-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:14,fontWeight:600,color:"#334155"}}>🎯 오늘의 퀘스트</span><span style={{marginLeft:"auto",fontSize:11,color:th.p,background:th.pl||"#fce8f0",padding:"2px 8px",borderRadius:20}}>{qDone}/{quests.length} 완료</span><button onClick={function(){setAddingQ(true);}} style={{border:"none",background:"#f1f5f9",width:22,height:22,borderRadius:6,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}>+</button></div>
-          {quests.map(function(q){return <QuestItem key={q.id} quest={q} onStart={function(){upQ(q.id,{secs:q.userMin*60,running:true});}} onPause={function(){upQ(q.id,{running:false});}} onResume={function(){upQ(q.id,{running:true});}} onConfirm={function(){upQ(q.id,{secs:0,running:false,done:true,_justDone:true});}} onUndo={function(){handleUndo(q.id,q.baseXp,q.userMin);}} onDelete={function(){deleteQuest(q.id);}} onEditMin={function(m){upQ(q.id,{userMin:m,secs:null,running:false});}} onEditLabel={function(label){upQ(q.id,{label:label});}}/>;}) }
-          {addingQ&&(<div style={{marginTop:10,display:"flex",gap:6}}><input autoFocus value={newQL} onChange={function(e){setNewQL(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter"&&newQL.trim()){setQuests(function(p){return p.concat([{id:Date.now(),label:newQL.trim(),baseXp:10,suggestedMin:15,userMin:15,secs:null,running:false,done:false}]);});setNewQL("");setAddingQ(false);}if(e.key==="Escape")setAddingQ(false);}} placeholder="퀘스트 이름..." style={{flex:1,padding:"6px 8px",border:"1px solid "+th.p,borderRadius:8,fontSize:12,fontFamily:"inherit",outline:"none"}}/><button onClick={function(){setAddingQ(false);}} style={{padding:"4px 8px",border:"1px solid #e2e8f0",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>취소</button></div>)}
-          <div style={{marginTop:12,background:"#fffbeb",borderRadius:10,padding:"10px 12px",border:"1px solid #fde68a"}}><div style={{fontSize:11,fontWeight:600,color:"#f59e0b",marginBottom:4}}>💡 스마트 XP 계산 예시:</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 12px",fontSize:11,color:"#64748b"}}><span>• 50분 학습 → 20 XP</span><span>• 단어 20개 → 15 XP</span><span>• 오래 10개 → 10 XP</span><span>• 줄넘기 1회 → 10 XP</span></div></div>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <KoreanCalendar compact={true}/>
-          <div style={{background:aiCfg.bg,borderRadius:14,padding:14,border:"1px solid "+aiCfg.border}}><div style={{fontSize:14,fontWeight:600,color:"#334155",marginBottom:8}}>🤖 AI 가이드</div><div style={{display:"flex",gap:10,alignItems:"flex-start"}}><span style={{fontSize:22}}>{aiCfg.icon}</span><span style={{fontSize:13,color:"#334155",lineHeight:1.6}}>{aiCfg.msg}</span></div><div style={{display:"flex",gap:6,marginTop:10}}>{[{key:"warn",label:"⚠️ 경고"},{key:"xp",label:"✨ XP 팁"},{key:"basic",label:"🔆 기본"}].map(function(t){return <span key={t.key} style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:aiMode===t.key?"#fce8f0":"#f1f5f9",color:aiMode===t.key?"#9b3060":"#94a3b8",border:"1px solid "+(aiMode===t.key?"#f0b8d0":"#e2e8f0"),fontWeight:aiMode===t.key?600:400}}>{t.label}</span>;})}</div></div>
-        </div>
+        {topTwo.map(function(id){return WIDGETS[id];})}
       </div>
-      <div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><span style={{fontSize:14,fontWeight:600,color:"#334155"}}>🏅 배지 컬렉션</span><span style={{marginLeft:"auto",fontSize:11,color:th.p,background:th.pl||"#fce8f0",padding:"2px 8px",borderRadius:20}}>{earned.length}/{ALL_BADGES.length} 획득</span></div><div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10}}>{ALL_BADGES.map(function(b){const ok=b.req(Object.assign({},stats,{xp:xp,level:lvl.level}));return(<div key={b.id} title={b.label} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{width:48,height:48,borderRadius:"50%",background:ok?th.pl||"#fce8f0":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,border:"2px solid "+(ok?th.pb||"#f0d0e0":"#e2e8f0"),filter:ok?"none":"grayscale(1) opacity(0.4)"}}>{b.emoji}</div><span style={{fontSize:9,color:ok?th.p:"#94a3b8",textAlign:"center",lineHeight:1.2,fontWeight:ok?600:400}}>{b.label}</span></div>);})}</div></div>
-      <div style={{background:"white",borderRadius:14,padding:16,border:"1px solid #e2e8f0"}}><div style={{display:"flex",alignItems:"center",marginBottom:12}}><span style={{fontSize:14,fontWeight:600,color:"#334155"}}>📊 월간 리포트</span><span style={{fontSize:12,color:"#94a3b8",marginLeft:"auto"}}>{new Date().getFullYear()}년 {new Date().getMonth()+1}월</span></div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>{[{icon:"⚡",label:"총 획득 XP",val:xp+" XP"},{icon:"⏱️",label:"총 학습 시간",val:Math.round(stats.studySecs/60)+"분"},{icon:"🔥",label:"연속 기록",val:stats.streak+"일"},{icon:"🏅",label:"획득 배지",val:earned.length+"개"}].map(function(s,i){return <div key={i} style={{background:"#f8fafc",borderRadius:10,padding:12,display:"flex",flexDirection:"column",gap:4,border:"1px solid #e2e8f0"}}><span style={{fontSize:18}}>{s.icon}</span><span style={{fontSize:11,color:"#64748b"}}>{s.label}</span><span style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>{s.val}</span></div>;})}</div><div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}><WeeklyBarChart title="이번 주 획득 XP" barColor={th.p} data={stats.weeklyXP} unit="XP" todayIdx={today2}/><WeeklyBarChart title="이번 주 학습 시간" barColor={th.p} data={stats.weeklyMins} unit="분" todayIdx={today2}/></div><div style={{fontSize:13,fontWeight:600,color:"#334155",marginBottom:10}}>🏆 월간 랭킹 기준</div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>{RANKS.map(function(r){const cur2=getRank(xp).name===r.name;return(<div key={r.name} style={{borderRadius:12,padding:14,textAlign:"center",border:"2px solid "+(cur2?r.border:"#e2e8f0"),background:cur2?r.bg:"#f8fafc",opacity:xp>=r.minXP?1:0.5}}><div style={{fontSize:24}}>{r.icon}</div><div style={{fontWeight:700,color:r.color,marginTop:4}}>{r.name}</div><div style={{fontSize:11,color:"#64748b"}}>{r.minXP}+ XP</div>{cur2&&<div style={{fontSize:10,background:"#fde68a",color:"#92400e",padding:"2px 8px",borderRadius:20,fontWeight:600,marginTop:6,display:"inline-block"}}>현재 등급</div>}</div>);})}</div></div>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        {bottom.map(function(id){return WIDGETS[id];})}
+      </div>
     </div>
   );
 }
+
 
 function CelebrationModal({type,value,onClose}){
   const cfgs={level:{icon:"🎉",title:"레벨 업!",sub:"새 레벨에 도달했어요! 계속 성장해보세요 🌱",grad:"linear-gradient(135deg,#1e1e1e,#3d3d3d)"},rank:{icon:"🏆",title:"등급 상승!",sub:"더 높은 등급으로 올라갔어요! ✨",grad:"linear-gradient(135deg,#f59e0b,#ef4444)"},badge:{icon:"🏅",title:"배지 획득!",sub:"새 배지를 획득했어요! 계속 도전해보세요 🎊",grad:"linear-gradient(135deg,#22c55e,#3b82f6)"}};
@@ -560,7 +766,7 @@ function ProfilePage({viewUser,myProfile,posts,follows,onFollow,onBack,darkMode,
         </div>
         {isMe&&(<div style={{background:cardBg,margin:"0 16px 12px",padding:"16px 20px",borderRadius:20,border:"1px solid "+borderCol,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
           <div style={{fontSize:13,fontWeight:700,color:textMain,marginBottom:12}}>📊 나의 활동</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>{[{icon:"🔥",label:"연속",val:myStats.streak+"일"},{icon:"🎯",label:"퀘스트",val:myStats.questsDone+"회"},{icon:"⏱️",label:"학습",val:Math.round(myStats.studySecs/60)+"분"},{icon:"📝",label:"노트",val:myStats.entries+"개"}].map(function(s,i){return <div key={i} style={{background:darkMode?"#16213e":th.pl,borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid "+borderCol}}><div style={{fontSize:18}}>{s.icon}</div><div style={{fontSize:10,color:textSub}}>{s.label}</div><div style={{fontSize:14,fontWeight:800,color:th.p}}>{s.val}</div></div>;}) }</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>{[{icon:"🔥",label:"연속",val:myStats.streak+"일"},{icon:"🎯",label:"퀘스트",val:myStats.questsDone+"회"},{icon:"⏱️",label:"학습",val:fmtMin(Math.round(myStats.studySecs/60))},{icon:"📝",label:"노트",val:myStats.entries+"개"}].map(function(s,i){return <div key={i} style={{background:darkMode?"#16213e":th.pl,borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid "+borderCol}}><div style={{fontSize:18}}>{s.icon}</div><div style={{fontSize:10,color:textSub}}>{s.label}</div><div style={{fontSize:14,fontWeight:800,color:th.p}}>{s.val}</div></div>;}) }</div>
           {earnedBadges.length>0&&(<div><div style={{fontSize:12,color:textSub,marginBottom:8}}>획득한 배지 {earnedBadges.length}개</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{earnedBadges.map(function(b){return <span key={b.id} title={b.label} style={{fontSize:20}}>{b.emoji}</span>;}) }</div></div>)}
         </div>)}
         <div style={{background:cardBg,margin:"0 16px 16px",borderRadius:20,border:"1px solid "+borderCol,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",overflow:"hidden",padding:"16px 0"}}>
@@ -1056,6 +1262,278 @@ function AuthModal(props){
   );
 }
 
+// ── Live Demo Section (auto-playing app simulation) ──
+function LiveDemoSection(){
+  const TABS=[
+    {id:"quest",emoji:"🎯",label:"퀘스트"},
+    {id:"note",emoji:"📝",label:"노트"},
+    {id:"community",emoji:"🌐",label:"커뮤니티"},
+    {id:"review",emoji:"⭐",label:"평가"},
+  ];
+  const [active,setActive]=useState("quest");
+
+  return(
+    <div style={{maxWidth:760,margin:"56px auto 0",padding:"0 20px"}}>
+      <div style={{textAlign:"center",marginBottom:24}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:7,background:"#fce7f3",color:"#a05070",padding:"5px 14px",borderRadius:20,fontSize:11.5,fontWeight:700,marginBottom:14}}>
+          <span style={{width:7,height:7,borderRadius:"50%",background:"#22c55e",display:"inline-block",animation:"liveDot 1.4s ease-in-out infinite"}}/>
+          실시간 데모 — 실제 작동 화면
+        </div>
+        <h2 style={{fontSize:24,fontWeight:800,color:"#2d0a1a",marginBottom:8}}>이렇게 자동으로 움직여요</h2>
+        <p style={{fontSize:13,color:"#9a7a8a"}}>탭을 눌러 기능별 데모를 확인해보세요</p>
+      </div>
+
+      <style>{`
+        @keyframes liveDot{0%,100%{opacity:1}50%{opacity:0.25}}
+        @keyframes demoBurst{0%{transform:scale(0.4);opacity:0}40%{transform:scale(1.15);opacity:1}100%{transform:scale(1.6);opacity:0}}
+        @keyframes demoFloat{0%{transform:translateY(0);opacity:0}15%{opacity:1}100%{transform:translateY(-34px);opacity:0}}
+        @keyframes demoCheckPop{0%{transform:scale(0)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+        @keyframes demoBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+        @keyframes demoSlideIn{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes demoHeartPop{0%{transform:scale(1)}40%{transform:scale(1.4)}100%{transform:scale(1)}}
+        @keyframes demoStarPop{0%{transform:scale(0.6) rotate(-15deg);opacity:0}60%{transform:scale(1.25) rotate(5deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+      `}</style>
+
+      {/* Tab selector */}
+      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:18,flexWrap:"wrap"}}>
+        {TABS.map(function(t){
+          const isActive=active===t.id;
+          return(
+            <button key={t.id} onClick={function(){setActive(t.id);}} style={{padding:"8px 16px",borderRadius:20,border:"1.5px solid "+(isActive?"#a05070":"#f0d8e4"),background:isActive?"#a05070":"white",color:isActive?"white":"#a05070",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+              {t.emoji} {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{background:"white",borderRadius:20,boxShadow:"0 16px 50px rgba(160,80,112,0.14)",border:"1px solid #f0d8e4",overflow:"hidden"}}>
+        <div style={{background:"#faeef4",borderBottom:"1px solid #f0d8e4",padding:"9px 16px",display:"flex",alignItems:"center",gap:6}}>
+          {["#ff6b6b","#ffd166","#06d6a0"].map(function(c,i){return <div key={i} style={{width:9,height:9,borderRadius:"50%",background:c,opacity:0.6}}/>;}) }
+          <span style={{fontSize:11,color:"#b07090",marginLeft:8}}>D+Puzzle — {TABS.find(function(t){return t.id===active;}).label}</span>
+        </div>
+        {active==="quest"&&<QuestDemo/>}
+        {active==="note"&&<NoteDemo/>}
+        {active==="community"&&<CommunityDemo/>}
+        {active==="review"&&<ReviewDemoAnim/>}
+      </div>
+    </div>
+  );
+}
+
+// ── Shared step-loop hook ──
+function useDemoSteps(durations){
+  const [step,setStep]=useState(0);
+  const [pct,setPct]=useState(0);
+  useEffect(function(){
+    let raf=null,startTs=null;
+    const dur=durations[step];
+    function tick(ts){
+      if(startTs===null)startTs=ts;
+      const elapsed=ts-startTs;
+      const p=Math.min(elapsed/dur,1);
+      setPct(p*100);
+      if(p<1){raf=requestAnimationFrame(tick);}
+      else{setStep(function(s){return (s+1)%durations.length;});}
+    }
+    raf=requestAnimationFrame(tick);
+    return function(){if(raf)cancelAnimationFrame(raf);};
+  },[step]);
+  return [step,pct];
+}
+
+// ── Quest Demo ──
+function QuestDemo(){
+  const DURATIONS=[4200,8200,3400,5200];
+  const [step,pct]=useDemoSteps(DURATIONS);
+  const [showBurst,setShowBurst]=useState(false);
+  useEffect(function(){
+    if(step===3){setShowBurst(true);const t=setTimeout(function(){setShowBurst(false);},1400);return function(){clearTimeout(t);};}
+  },[step]);
+  const questDone=step>=2;
+  const xpVal=step<3?240:260;
+  const xpPct=step<3?68:82;
+
+  return(
+    <div style={{padding:"22px 24px",position:"relative",minHeight:220}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:34,height:34,borderRadius:9,background:"linear-gradient(135deg,#fce7f3,#fae8ff)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🌱</div>
+          <div><div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>D+Puzzle Lv.3</div><div style={{fontSize:10.5,color:"#94a3b8"}}>{step<2?"학습 진행 중...":"레벨업까지 40 XP 남음"}</div></div>
+        </div>
+        <div style={{textAlign:"right",position:"relative"}}>
+          <div style={{fontSize:17,fontWeight:800,color:"#a05070"}}>{xpVal} XP</div>
+          {showBurst&&<div style={{position:"absolute",right:0,top:-4,fontSize:11,fontWeight:800,color:"#22c55e",animation:"demoFloat 1.3s ease-out forwards"}}>+20 XP</div>}
+        </div>
+      </div>
+      <div style={{background:"#f1eef0",height:8,borderRadius:9999,marginBottom:18,overflow:"hidden"}}>
+        <div style={{width:xpPct+"%",height:"100%",background:showBurst?"linear-gradient(90deg,#d9d4cc,#ec4899,#d9d4cc)":"linear-gradient(90deg,#1e1e1e,#3d3d3d)",borderRadius:9999,transition:"width 0.8s ease, background 0.3s"}}/>
+      </div>
+      <div style={{background:questDone?"#f0fdf4":"#f8fafc",borderRadius:12,border:"1px solid "+(questDone?"#86efac":"#e2e8f0"),padding:"13px 15px",transition:"background 0.5s, border 0.5s"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:20,height:20,borderRadius:6,border:"2px solid "+(questDone?"#22c55e":"#cbd5e1"),background:questDone?"#22c55e":"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.4s"}}>{questDone&&<span style={{color:"white",fontSize:11,animation:"demoCheckPop 0.4s ease"}}>✓</span>}</div>
+          <span style={{flex:1,fontSize:13.5,color:questDone?"#94a3b8":"#334155",textDecoration:questDone?"line-through":"none"}}>수학 30분 학습</span>
+          <span style={{fontSize:12,color:"#a05070",fontWeight:700}}>+20 XP</span>
+        </div>
+        {!questDone&&(
+          <div style={{marginTop:10}}>
+            <div style={{height:5,background:"#e2e8f0",borderRadius:9999,overflow:"hidden"}}><div style={{width:pct+"%",height:"100%",background:"linear-gradient(90deg,#1e1e1e,#3d3d3d)",borderRadius:9999}}/></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:7}}>
+              <span style={{fontSize:10.5,color:"#94a3b8"}}>{step===0?"시작 대기 중":"30분 중 "+Math.round(pct/100*30)+"분 진행"}</span>
+              <span style={{fontSize:10.5,background:step===0?"#a05070":"#f1f5f9",color:step===0?"white":"#64748b",padding:"3px 10px",borderRadius:6,fontWeight:600,transition:"all 0.4s"}}>{step===0?"▶ 시작":"⏸ 진행 중"}</span>
+            </div>
+          </div>
+        )}
+        {questDone&&<div style={{marginTop:8,fontSize:11,color:"#22c55e",fontWeight:600}}>✓ 완료! +20 XP 획득</div>}
+      </div>
+      {showBurst&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}><div style={{fontSize:54,animation:"demoBurst 1.3s ease-out forwards"}}>🎉</div></div>}
+      <DemoDots step={step} count={4}/>
+    </div>
+  );
+}
+
+// ── Note Demo ──
+function NoteDemo(){
+  const FULL_TEXT="극한의 정의: lim f(x) = L 일 때, 연속함수의 조건은...";
+  const DURATIONS=[1600,4200,2400,2600];
+  const [step,pct]=useDemoSteps(DURATIONS);
+  const charCount=step===1?Math.round((pct/100)*FULL_TEXT.length):(step>=2?FULL_TEXT.length:0);
+  const shownText=FULL_TEXT.slice(0,charCount);
+  const highlightOn=step>=2;
+  const saved=step===3;
+
+  return(
+    <div style={{padding:"22px 24px",minHeight:220}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+        <span style={{fontSize:13,fontWeight:700,color:"#334155"}}>📓 수학 — 미적분 노트</span>
+        {saved&&<span style={{fontSize:11,color:"#22c55e",fontWeight:700,animation:"demoSlideIn 0.3s ease"}}>저장됨 ✓</span>}
+      </div>
+      <div style={{background:"#f8fafc",borderRadius:12,border:"1px solid #e2e8f0",padding:"14px 16px",minHeight:90}}>
+        <div style={{display:"flex",gap:5,marginBottom:10}}>
+          {["B","I","U","H1"].map(function(b,i){return <div key={i} style={{padding:"3px 9px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:10,color:"#94a3b8",background:"white",fontWeight:i===0&&highlightOn?700:400}}>{b}</div>;}) }
+        </div>
+        <div style={{fontSize:13.5,lineHeight:1.9,color:"#334155"}}>
+          <span style={{fontWeight:highlightOn?800:400,color:highlightOn?"#a05070":"#334155",transition:"all 0.3s"}}>{shownText.slice(0,15)}</span>
+          <span style={{background:highlightOn&&shownText.length>15?"#fef9c3":"transparent",padding:highlightOn&&shownText.length>15?"1px 4px":"0",borderRadius:4,transition:"all 0.3s"}}>{shownText.slice(15)}</span>
+          {step===1&&<span style={{display:"inline-block",width:2,height:14,background:"#a05070",marginLeft:1,verticalAlign:"middle",animation:"demoBlink 0.9s step-end infinite"}}/>}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:12}}>
+        <div style={{padding:"7px 16px",background:"linear-gradient(135deg,#eeece8,#fce7f3)",border:"1px solid #b0aba3",borderRadius:10,fontSize:11,color:"#a05070",fontWeight:600}}>+ 엔트리 추가</div>
+        <div style={{padding:"7px 16px",background:saved?"#a05070":"#e9dde2",borderRadius:10,fontSize:11,color:"white",fontWeight:600,transition:"background 0.3s"}}>💾 노트 저장</div>
+      </div>
+      <DemoDots step={step} count={4}/>
+    </div>
+  );
+}
+
+// ── Community Demo ──
+function CommunityDemo(){
+  const DURATIONS=[2200,2600,2200,3000];
+  const [step,pct]=useDemoSteps(DURATIONS);
+  const composing=step===0;
+  const posted=step>=2;
+  const liked=step===3;
+
+  return(
+    <div style={{padding:"22px 24px",minHeight:220}}>
+      {!posted&&(
+        <div style={{background:"#f8fafc",borderRadius:14,border:"1px solid #e2e8f0",padding:"14px 16px",opacity:step===1?Math.max(0,1-pct/100):1,transition:"opacity 0.3s"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#334155",marginBottom:10}}>📸 게시물 만들기</div>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <div style={{flex:1,padding:"9px 10px",borderRadius:10,border:"2px solid "+(composing?"#a05070":"#e2e8f0"),background:composing?"#fce7f3":"white",fontSize:11,color:composing?"#a05070":"#94a3b8",fontWeight:composing?700:400,transition:"all 0.3s"}}>🎯 수학 30분 학습 ✓완료</div>
+          </div>
+          <div style={{fontSize:11,color:"#94a3b8",padding:"8px 10px",border:"1px solid #e2e8f0",borderRadius:8,marginBottom:10}}>오늘 목표 달성! 다들 화이팅 💪</div>
+          <div style={{textAlign:"right"}}>
+            <span style={{padding:"7px 16px",background:step===1?"#a05070":"#e9dde2",borderRadius:10,fontSize:11,color:"white",fontWeight:700,transition:"background 0.3s"}}>공유하기 🚀</span>
+          </div>
+        </div>
+      )}
+      {posted&&(
+        <div style={{background:"white",borderRadius:16,border:"1px solid #f0d8e4",boxShadow:"0 2px 10px rgba(0,0,0,0.06)",animation:"demoSlideIn 0.4s ease"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px 8px"}}>
+            <div style={{width:32,height:32,borderRadius:"50%",background:"#fce7f3",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>👤</div>
+            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>user</div><div style={{fontSize:10,color:"#94a3b8"}}>방금 전</div></div>
+          </div>
+          <div style={{margin:"0 14px 8px",background:"#fce7f3",borderRadius:10,padding:"9px 12px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#a05070"}}>🎯 수학 30분 학습</div>
+            <div style={{fontSize:10.5,color:"#94a3b8",marginTop:2}}>✓ 완료 · +20 XP</div>
+          </div>
+          <p style={{fontSize:12.5,color:"#334155",margin:"0 14px 10px"}}>오늘 목표 달성! 다들 화이팅 💪</p>
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderTop:"1px solid #f3eef1"}}>
+            <span style={{fontSize:18,display:"inline-block",animation:liked?"demoHeartPop 0.4s ease":"none"}}>{liked?"❤️":"🤍"}</span>
+            <span style={{fontSize:12,fontWeight:600,color:liked?"#a05070":"#94a3b8"}}>{liked?"3":"2"}</span>
+            <span style={{fontSize:10.5,color:"#94a3b8",marginLeft:4}}>{liked?"user님 외 2명이 좋아해요":"user님 외 1명이 좋아해요"}</span>
+          </div>
+        </div>
+      )}
+      <DemoDots step={step} count={4}/>
+    </div>
+  );
+}
+
+// ── Review Demo ──
+function ReviewDemoAnim(){
+  const DURATIONS=[3000,2400,2600,2400];
+  const [step,pct]=useDemoSteps(DURATIONS);
+  const starCount=step===0?Math.ceil((pct/100)*5):(step>=1?5:0);
+  const tagsOn=step>=1;
+  const typingOn=step>=2;
+  const submitted=step===3;
+  const FEEDBACK="퀘스트 시스템이 정말 재밌어요!";
+  const typedLen=step===2?Math.round((pct/100)*FEEDBACK.length):(step===3?FEEDBACK.length:0);
+
+  return(
+    <div style={{padding:"22px 24px",minHeight:220}}>
+      {!submitted&&(
+        <div style={{background:"#f8fafc",borderRadius:14,border:"1px solid #e2e8f0",padding:"16px 18px"}}>
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <div style={{fontSize:11,color:"#94a3b8",marginBottom:8}}>전체 만족도</div>
+            <div style={{display:"flex",gap:4,justifyContent:"center"}}>
+              {[1,2,3,4,5].map(function(i){return <span key={i} style={{fontSize:22,filter:i<=starCount?"none":"grayscale(1) opacity(0.25)",display:"inline-block",animation:i===starCount&&step===0?"demoStarPop 0.3s ease":"none"}}>⭐</span>;}) }
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:14}}>
+            {["퀘스트 시스템","XP 보상","UI 디자인"].map(function(t,i){return(
+              <span key={t} style={{fontSize:10.5,padding:"4px 11px",borderRadius:20,border:"1.5px solid "+(tagsOn?"#a05070":"#e2e8f0"),background:tagsOn?"#a05070":"transparent",color:tagsOn?"white":"#94a3b8",fontWeight:tagsOn?700:400,transition:"all 0.3s",transitionDelay:(i*0.1)+"s"}}>👍 {t}</span>
+            );})}
+          </div>
+          <div style={{fontSize:10.5,color:"#94a3b8",marginBottom:5}}>💬 자유롭게 좋았던 점</div>
+          <div style={{background:"white",border:"1.5px solid #e2e8f0",borderRadius:10,padding:"9px 11px",fontSize:11.5,color:"#334155",minHeight:32}}>
+            {FEEDBACK.slice(0,typedLen)}
+            {step===2&&<span style={{display:"inline-block",width:1.5,height:12,background:"#a05070",marginLeft:1,verticalAlign:"middle",animation:"demoBlink 0.9s step-end infinite"}}/>}
+          </div>
+        </div>
+      )}
+      {submitted&&(
+        <div style={{animation:"demoSlideIn 0.4s ease"}}>
+          <div style={{background:"white",borderRadius:14,border:"1px solid #f0d8e4",padding:"14px 16px",boxShadow:"0 2px 10px rgba(0,0,0,0.06)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+              <div style={{width:30,height:30,borderRadius:"50%",background:"#fce7f3",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>👤</div>
+              <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>user</div><div style={{fontSize:10,color:"#94a3b8"}}>방금 전</div></div>
+              <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(function(i){return <span key={i} style={{fontSize:11}}>⭐</span>;}) }</div>
+            </div>
+            <span style={{fontSize:10,background:"#fce7f3",color:"#a05070",padding:"2px 8px",borderRadius:20,fontWeight:700}}>👍 퀘스트 시스템</span>
+            <p style={{fontSize:12,color:"#334155",margin:"8px 0 0",lineHeight:1.6}}>{FEEDBACK}</p>
+          </div>
+          <div style={{textAlign:"center",marginTop:12,fontSize:11,color:"#22c55e",fontWeight:700}}>🎉 평가가 등록되었어요!</div>
+        </div>
+      )}
+      <DemoDots step={step} count={4}/>
+    </div>
+  );
+}
+
+function DemoDots({step,count}){
+  return(
+    <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:18}}>
+      {Array.from({length:count},function(_,i){return(
+        <div key={i} style={{width:step===i?20:6,height:6,borderRadius:9999,background:step===i?"#a05070":"#f0d8e4",transition:"width 0.3s, background 0.3s"}}/>
+      );})}
+    </div>
+  );
+}
+
+
 function HomePage({onStart,onLogin}){
   const [activeFeat,setActiveFeat]=useState("xp");
   const FEATURES=[
@@ -1071,10 +1549,10 @@ function HomePage({onStart,onLogin}){
       <div style={{background:"#faeaf2",padding:"96px 20px 80px",textAlign:"center"}}>
         <div style={{maxWidth:640,margin:"0 auto"}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#f2d8ea",border:"1px solid #e8e8ec",borderRadius:20,padding:"5px 15px",fontSize:12,color:"#666666",fontWeight:600,marginBottom:32}}>✦ 학습을 게임처럼, 성장을 수집처럼</div>
-          <h1 style={{fontSize:52,fontWeight:900,color:"#2d0a1a",lineHeight:1.15,marginBottom:20,letterSpacing:"-1.5px"}}>마침내,<br/><span style={{color:"#a05070"}}>성장이 수집됩니다.</span></h1>
+          <h1 className="hero-h1" style={{fontSize:52,fontWeight:900,color:"#2d0a1a",lineHeight:1.15,marginBottom:20,letterSpacing:"-1.5px"}}>마침내,<br/><span style={{color:"#a05070"}}>성장이 수집됩니다.</span></h1>
           <p style={{fontSize:15,color:"#8a5068",lineHeight:1.9,maxWidth:460,margin:"0 auto 44px"}}>공부 시간을 경험치(XP)로, 학습 기록을 레벨(Level)로.<br/>당신의 모든 노력이 수치로 증명되는 유일한 공간.</p>
           <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
-            <button onClick={onStart} style={{background:"#a05070",color:"white",border:"none",padding:"13px 32px",borderRadius:11,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>무료로 시작하기 →</button>
+            <button onClick={onStart} style={{background:"#a05070",color:"white",border:"none",padding:"13px 32px",borderRadius:11,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>시작하기 →</button>
             <button onClick={onLogin} style={{background:"white",color:"#333344",border:"1.5px solid #e0e0e8",padding:"13px 28px",borderRadius:11,fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>로그인</button>
           </div>
         </div>
@@ -1101,13 +1579,14 @@ function HomePage({onStart,onLogin}){
           </div>
         </div>
       </div>
+
       <div style={{maxWidth:940,margin:"64px auto",padding:"0 20px"}}>
         <div style={{textAlign:"center",marginBottom:44}}>
           <div style={{fontSize:11,fontWeight:700,color:"#b07090",letterSpacing:2.5,marginBottom:10,textTransform:"uppercase"}}>Core Features</div>
           <h2 style={{fontSize:28,fontWeight:800,color:"#2d0a1a",marginBottom:10}}>핵심 기능 소개</h2>
           <p style={{fontSize:13.5,color:"#b07090"}}>항목을 클릭하면 기능을 미리 확인할 수 있어요</p>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,alignItems:"start"}}>
+        <div className="feature-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,alignItems:"start"}}>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {FEATURES.map(function(f){
               return(
@@ -1131,11 +1610,15 @@ function HomePage({onStart,onLogin}){
           </div>
         </div>
       </div>
-      <div style={{background:"linear-gradient(160deg,#2d0a1a 0%,#3d1428 60%,#4a1e35 100%)",padding:"72px 20px",textAlign:"center"}}>
+
+      {/* ── Live Demo Section ── */}
+      <LiveDemoSection/>
+
+      <div style={{background:"white",padding:"72px 20px",textAlign:"center"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#a05070",letterSpacing:2.5,marginBottom:14,textTransform:"uppercase"}}>Get Started Free</div>
-        <h2 style={{fontSize:28,fontWeight:800,color:"white",marginBottom:12}}>지금 바로 성장을 시작하세요</h2>
-        <p style={{fontSize:13.5,color:"rgba(255,255,255,0.42)",marginBottom:34}}>무료로 시작하고, 오늘 첫 XP를 획득해보세요 ✨</p>
-        <button onClick={onStart} style={{background:"#a05070",color:"white",border:"none",padding:"13px 38px",borderRadius:12,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>무료로 시작하기 🚀</button>
+        <h2 style={{fontSize:28,fontWeight:800,color:"#2d0a1a",marginBottom:12}}>지금 바로 성장을 시작하세요</h2>
+        <p style={{fontSize:13.5,color:"#9a7a8a",marginBottom:34}}>무료로 시작하고, 오늘 첫 XP를 획득해보세요 ✨</p>
+        <button onClick={onStart} style={{background:"#a05070",color:"white",border:"none",padding:"13px 38px",borderRadius:12,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>시작하기</button>
       </div>
     </div>
   );
@@ -1155,6 +1638,7 @@ export default function BlueMind(){
   const [loggedIn,setLoggedIn]=useState(function(){return loadLS("bm_loggedIn",false);});
   const [accounts,setAccounts]=useState(function(){return loadLS("bm_accounts",{});});
   const [darkMode,setDarkMode]=useState(function(){return loadLS("bm_dark",false);});
+  const [primaryColor,setPrimaryColor]=useState(function(){return loadLS("bm_primary","#a05070");});
   const [showSettings,setShowSettings]=useState(false);
   const [showStreakCal,setShowStreakCal]=useState(false);
   const [profileView,setProfileView]=useState(null);
@@ -1168,6 +1652,7 @@ export default function BlueMind(){
   useEffect(function(){try{localStorage.setItem("bm_loggedIn",JSON.stringify(loggedIn));}catch{}},[loggedIn]);
   useEffect(function(){try{localStorage.setItem("bm_accounts",JSON.stringify(accounts));}catch{}},[accounts]);
   useEffect(function(){try{localStorage.setItem("bm_dark",JSON.stringify(darkMode));}catch{}},[darkMode]);
+  useEffect(function(){try{localStorage.setItem("bm_primary",JSON.stringify(primaryColor));}catch{}},[primaryColor]);
   useEffect(function(){if(loggedIn)setTab("dashboard");},[]);
 
   const handleAuth=function(info){
@@ -1206,21 +1691,21 @@ export default function BlueMind(){
 
   const lvl=getLvl(xp),rank=getRank(xp);
   const isHome=tab==="home";
-  const th=getTheme("default",darkMode);
+  const th=getTheme("default",darkMode,primaryColor);
 
   return(
     <div style={{fontFamily:"'Noto Sans KR',sans-serif",minHeight:"100vh",background:isHome?th.pl:darkMode?"#0f0f1a":"#f4f6fb",color:th.text}}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-      <style>{`*{box-sizing:border-box}button:active{transform:scale(0.97)}@keyframes xpPing{0%{box-shadow:0 0 0 0 rgba(236,72,153,0.5)}70%{box-shadow:0 0 0 8px rgba(236,72,153,0)}100%{box-shadow:0 0 0 0 rgba(236,72,153,0)}}@media(max-width:768px){.dash-grid{grid-template-columns:1fr!important}.chart-grid{grid-template-columns:1fr!important}}`}</style>
+      <style>{`*{box-sizing:border-box}button:active{transform:scale(0.97)}@keyframes xpPing{0%{box-shadow:0 0 0 0 rgba(236,72,153,0.5)}70%{box-shadow:0 0 0 8px rgba(236,72,153,0)}100%{box-shadow:0 0 0 0 rgba(236,72,153,0)}}@media(max-width:768px){.dash-grid{grid-template-columns:1fr!important}.chart-grid{grid-template-columns:1fr!important}.feature-grid{grid-template-columns:1fr!important}.hero-h1{font-size:34px!important}}@media(max-width:420px){.hero-h1{font-size:28px!important}}`}</style>
       {showNotifBar&&<NotificationBar onClose={()=>setShowNotifBar(false)}/>}
       {showConfetti&&<Confetti/>}
       <nav style={{background:th.nav,borderBottom:"1px solid "+(darkMode?"#2d2d4e":"rgba(0,0,0,0.06)"),position:"sticky",top:0,zIndex:100}}>
         <div style={{maxWidth:1160,margin:"0 auto",padding:"0 24px",height:60,display:"flex",alignItems:"center",gap:24}}>
-          <button onClick={()=>setTab("home")} style={{background:th.p,color:"white",fontWeight:900,fontSize:15,padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit"}}>D+Puzzle</button>
+          <button onClick={()=>{setProfileView(null);setTab(loggedIn?"dashboard":"home");}} style={{background:th.p,color:"white",fontWeight:900,fontSize:15,padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",fontFamily:"inherit"}}>D+Puzzle</button>
           {!isHome&&(
             <div style={{display:"flex",gap:2}}>
               {[{id:"dashboard",label:"대시보드"},{id:"note",label:"노트"},{id:"community",label:"커뮤니티"},{id:"review",label:"⭐ 평가"}].map(function(t){
-                return <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"6px 16px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13.5,background:tab===t.id?th.pl:"transparent",color:tab===t.id?th.p:(darkMode?"#94a3b8":"#6b7280"),fontWeight:tab===t.id?700:500,fontFamily:"inherit"}}>{t.label}</button>;
+                return <button key={t.id} onClick={()=>{setProfileView(null);setTab(t.id);}} style={{padding:"6px 16px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13.5,background:tab===t.id?th.pl:"transparent",color:tab===t.id?th.p:(darkMode?"#94a3b8":"#6b7280"),fontWeight:tab===t.id?700:500,fontFamily:"inherit"}}>{t.label}</button>;
               })}
             </div>
           )}
@@ -1228,7 +1713,7 @@ export default function BlueMind(){
             {isHome&&(
               <React.Fragment>
                 <button onClick={()=>setAuthModal("login")} style={{padding:"8px 20px",borderRadius:10,border:"1.5px solid "+(darkMode?"#2d2d4e":"#e5e7eb"),background:darkMode?"#1e1e2e":"white",fontSize:13.5,fontWeight:600,cursor:"pointer",color:darkMode?"#e2e8f0":"#111827",fontFamily:"inherit"}}>로그인</button>
-                <button onClick={()=>setAuthModal("signup")} style={{padding:"8px 20px",borderRadius:10,border:"none",background:th.p,fontSize:13.5,fontWeight:700,cursor:"pointer",color:"white",fontFamily:"inherit"}}>무료로 시작하기</button>
+                <button onClick={()=>setAuthModal("signup")} style={{padding:"8px 20px",borderRadius:10,border:"none",background:th.p,fontSize:13.5,fontWeight:700,cursor:"pointer",color:"white",fontFamily:"inherit"}}>회원가입</button>
               </React.Fragment>
             )}
             {!isHome&&(
@@ -1282,7 +1767,7 @@ export default function BlueMind(){
             {loggedIn&&(
               <React.Fragment>
                 <div style={{display:tab==="dashboard"?"block":"none",maxWidth:960,margin:"0 auto",padding:"0 24px 48px"}}>
-                  <Dashboard xp={xp} onXPChange={setXP} stats={stats} setStats={setStats} xpFlash={xpFlash} activeTab={tab}  darkMode={darkMode} onQuestsChange={setQuestsForCommunity}/>
+                  <Dashboard xp={xp} onXPChange={setXP} stats={stats} setStats={setStats} xpFlash={xpFlash} activeTab={tab} darkMode={darkMode} onQuestsChange={setQuestsForCommunity}/>
                 </div>
                 <div style={{display:tab==="note"?"block":"none"}}>
                   <NotePage onEntriesChange={function(n){setStats(function(s){return Object.assign({},s,{entries:n});});}}/>
