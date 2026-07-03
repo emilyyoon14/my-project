@@ -1,6 +1,7 @@
 import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { Analytics } from "@vercel/analytics/react"
+import { supabase } from './supabaseClient';
 
 const INIT_QUESTS = [
   { id: 1, label: "수학 30분 학습", baseXp: 20, suggestedMin: 30 },
@@ -846,6 +847,7 @@ function CommunityPage({profile,quests,xp,darkMode,onViewProfile}){
     };
     savePosts([newPost].concat(freshPosts));
     setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);
+supabase.from('posts').insert([{ post_data: newPost }]).then();
   };
 
   const toggleLike=function(postId){
@@ -1656,6 +1658,14 @@ export default function BlueMind(){
   useEffect(function(){try{localStorage.setItem("bm_dark",JSON.stringify(darkMode));}catch{}},[darkMode]);
   useEffect(function(){try{localStorage.setItem("bm_primary",JSON.stringify(primaryColor));}catch{}},[primaryColor]);
   useEffect(function(){if(loggedIn)setTab("dashboard");},[]);
+useEffect(function(){
+  supabase.from('posts').select('post_data').order('id',{ascending:false}).then(function(res){
+    if(res.data){
+      const loaded=res.data.map(function(row){return row.post_data;});
+      savePosts(loaded);
+    }
+  });
+},[]);
 
   const handleAuth=function(info){
     const email=info.email,pw=info.pw,name=info.name,mode=info.mode;
