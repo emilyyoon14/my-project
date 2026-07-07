@@ -1060,11 +1060,21 @@ function ReviewPage({profile,darkMode}){
   const toggleTag=function(arr,setArr,tag){setArr(arr.includes(tag)?arr.filter(function(t){return t!==tag;}):arr.concat([tag]));};
 
   const saveReviews=function(r){setReviews(r);try{localStorage.setItem("bm_reviews",JSON.stringify(r));}catch{}};
+useEffect(function(){
+  supabase.from('reviews').select('review_data').order('id',{ascending:false}).then(function(res){
+    if(res.data){
+      const loaded=res.data.map(function(row){return row.review_data;});
+      setReviews(loaded);
+      try{localStorage.setItem("bm_reviews",JSON.stringify(loaded));}catch{}
+    }
+  });
+},[]);
 
   const submit=function(){
     if(!canSubmit)return;
     const r={id:Date.now(),author:myName,avatarSrc:profile.avatarSrc,stars:stars,liked:liked.trim(),disliked:disliked.trim(),suggest:suggest.trim(),goodTags:selGood,badTags:selBad,timestamp:Date.now()};
     saveReviews([r].concat(reviews));
+supabase.from('reviews').insert([{ review_data: r }]).then();
     setShowForm(false);setStars(0);setLiked("");setDisliked("");setSuggest("");setSelGood([]);setSelBad([]);
     setSubmitted(true);setTimeout(function(){setSubmitted(false);},3000);
   };
