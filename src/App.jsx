@@ -792,6 +792,7 @@ function CommunityPage({profile,quests,xp,darkMode,onViewProfile}){
   const [posts,setPosts]=useState(function(){return loadLS("bm_community",[]);});
   const [follows,setFollows]=useState(function(){return loadLS("bm_follows",{});});
   const [showPostModal,setShowPostModal]=useState(false);
+const [editingPost,setEditingPost]=useState(null);
   const [selQuests,setSelQuests]=useState([]);
   const [comment,setComment]=useState("");
   const [postImg,setPostImg]=useState(null);
@@ -842,23 +843,33 @@ useEffect(function(){
     else setSelQuests(selQuests.concat([q]));
   };
 
-  const submitPost=function(){
-    if(!comment.trim()&&!postImg&&selQuests.length===0)return;
-    const newPost={
-      id:Date.now(),
-      author:myName,
-      avatarSrc:profile.avatarSrc,
-      quests:selQuests.map(function(q){return {label:q.label,xp:q.baseXp,status:q.done?"done":"in-progress",pct:q.secs!==null&&!q.done?Math.round(((q.userMin*60-q.secs)/(q.userMin*60))*100):q.done?100:0};}),
+const submitPost=function(){
+  if(!comment.trim()&&!postImg&&selQuests.length===0)return;
+  if(editingPost){
+    const updatedPost=Object.assign({},editingPost,{
       comment:comment.trim(),
       image:postImg,
-      likes:[],
-      timestamp:Date.now(),
-    };
-    savePosts([newPost].concat(freshPosts));
-    setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);
-supabase.from('posts').insert([{ post_data: newPost }]).then();
+    });
+    const updatedList=freshPosts.map(function(p){return p.id===editingPost.id?updatedPost:p;});
+    savePosts(updatedList);
+    setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);setEditingPost(null);
+    supabase.from('posts').update({ post_data: updatedPost }).eq('id',editingPost.id).then();
+    return;
+  }
+  const newPost={
+    id:Date.now(),
+    author:myName,
+    avatarSrc:profile.avatarSrc,
+    quests:selQuests.map(function(q){return {label:q.label,xp:q.baseXp,status:q.done?"done":"in-progress",pct:q.secs!==null&&!q.done?Math.round(((q.userMin*60-q.secs)/(q.userMin*60))*100):q.done?100:0};}),
+    comment:comment.trim(),
+    image:postImg,
+    likes:[],
+    timestamp:Date.now(),
   };
-
+  savePosts([newPost].concat(freshPosts));
+  setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);
+  supabase.from('posts').insert([{ post_data: newPost }]).then();
+};
   const toggleLike=function(postId){
     const current=loadLS("bm_community",[]);
     const updated=current.map(function(p){
@@ -869,7 +880,11 @@ supabase.from('posts').insert([{ post_data: newPost }]).then();
     savePosts(updated);
   };
 
-  const deletePost=function(postId){savePosts(freshPosts.filter(function(p){return p.id!==postId;}));};
+const deletePost=function(postId){
+  const updated=freshPosts.filter(function(p){return p.id!==postId;});
+  savePosts(updated);
+  supabase.from('posts').delete().eq('id',postId).then();
+};
 
   const timeAgo=function(ts){
     const diff=Math.floor((Date.now()-ts)/1000);
@@ -897,7 +912,7 @@ supabase.from('posts').insert([{ post_data: newPost }]).then();
 
       {/* Post modal */}
       {showPostModal&&(
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowPostModal(false)}>
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>{setShowPostModal(false);setEditingPost(null);}}
           <div onClick={e=>e.stopPropagation()} style={{background:cardBg,borderRadius:20,padding:"24px 28px",width:460,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.3)"}}>
             <div style={{fontSize:17,fontWeight:800,color:textMain,marginBottom:18}}>📸 게시물 만들기</div>
 
@@ -983,8 +998,8 @@ supabase.from('posts').insert([{ post_data: newPost }]).then();
                   {mutual?"맞팔 ✓":following?"팔로잉":"팔로우"}
                 </button>
               )}
-              {isOwn&&<button onClick={()=>deletePost(post.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px"}}>🗑</button>}
-            </div>
+{isOwn&&<button onClick={()=>{setEditingPost(post);setComment(post.comment||"");setShowPostModal(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16,padding:"0 2px"}}>✏️</button>}
+{isOwn&&<button onClick={()=>deletePost(post.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px"}}>🗑</button>}
 
             {post.image&&(
               <div style={{background:"#000",maxHeight:400,overflow:"hidden"}}>
