@@ -803,6 +803,15 @@ function CommunityPage({profile,quests,xp,darkMode,onViewProfile}){
 
   const savePosts=function(p){setPosts(p);try{localStorage.setItem("bm_community",JSON.stringify(p));}catch{}};
   const saveFollows=function(f){setFollows(f);try{localStorage.setItem("bm_follows",JSON.stringify(f));}catch{}};
+useEffect(function(){
+  supabase.from('posts').select('post_data').order('id',{ascending:false}).then(function(res){
+    if(res.data){
+      const loaded=res.data.map(function(row){return row.post_data;});
+      setPosts(loaded);
+      try{localStorage.setItem("bm_community",JSON.stringify(loaded));}catch{}
+    }
+  });
+},[]);
 
   const myName=profile.name;
   const myFollows=(freshFollows[myName])||[];
@@ -1647,6 +1656,7 @@ export default function BlueMind(){
   const [showStreakCal,setShowStreakCal]=useState(false);
   const [profileView,setProfileView]=useState(null);
   const [questsForCommunity,setQuestsForCommunity]=useState([]);
+const [refreshBump,setRefreshBump]=useState(0);
   const prevXP=useRef(0);
   const prevBadges=useRef([]);
 
@@ -1658,14 +1668,6 @@ export default function BlueMind(){
   useEffect(function(){try{localStorage.setItem("bm_dark",JSON.stringify(darkMode));}catch{}},[darkMode]);
   useEffect(function(){try{localStorage.setItem("bm_primary",JSON.stringify(primaryColor));}catch{}},[primaryColor]);
   useEffect(function(){if(loggedIn)setTab("dashboard");},[]);
-useEffect(function(){
-  supabase.from('posts').select('post_data').order('id',{ascending:false}).then(function(res){
-    if(res.data){
-      const loaded=res.data.map(function(row){return row.post_data;});
-      savePosts(loaded);
-    }
-  });
-},[]);
 
   const handleAuth=function(info){
     const email=info.email,pw=info.pw,name=info.name,mode=info.mode;
