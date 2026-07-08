@@ -837,7 +837,7 @@ if(postAuthor&&postAuthor!==myName){
   const textMain=darkMode?"#e2e8f0":th.pt;
 
   return(
-    <div style={{padding:"0 16px 14px",borderTop:comments.length>0||true?"1px solid "+borderCol:"none"}}>
+<div style={{padding:"0 16px 14px",borderTop:comments.length>0?"1px solid "+borderCol:"none"}}>
       {comments.length>2&&!showAll&&(
         <div onClick={function(){setShowAll(true);}} style={{fontSize:12,color:textSub,cursor:"pointer",padding:"8px 0 4px"}}>댓글 {comments.length}개 모두 보기</div>
       )}
@@ -949,9 +949,9 @@ const [editingPost,setEditingPost]=useState(null);
   const savePosts=function(p){setPosts(p);try{localStorage.setItem("bm_community",JSON.stringify(p));}catch{}};
   const saveFollows=function(f){setFollows(f);try{localStorage.setItem("bm_follows",JSON.stringify(f));}catch{}};
 useEffect(function(){
-  supabase.from('posts').select('post_data').order('id',{ascending:false}).then(function(res){
+  supabase.from('posts').select('id,post_data').order('id',{ascending:false}).then(function(res){
     if(res.data){
-      const loaded=res.data.map(function(row){return row.post_data;});
+      const loaded=res.data.map(function(row){return Object.assign({},row.post_data,{dbId:row.id});});
       setPosts(loaded);
       try{localStorage.setItem("bm_community",JSON.stringify(loaded));}catch{}
     }
@@ -1016,8 +1016,7 @@ const submitPost=function(){
     const updatedList=freshPosts.map(function(p){return p.id===editingPost.id?updatedPost:p;});
     savePosts(updatedList);
     setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);setEditingPost(null);
-    supabase.from('posts').update({ post_data: updatedPost }).eq('id',editingPost.id).then();
-    return;
+supabase.from('posts').update({ post_data: updatedPost }).eq('id',editingPost.dbId).then();
   }
   const newPost={
     id:Date.now(),
@@ -1033,7 +1032,7 @@ const submitPost=function(){
   setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);
   supabase.from('posts').insert([{ post_data: newPost }]).then();
 };
-const toggleLike=function(postId){
+const toggleLike=function(postId,dbId){
   const current=loadLS("bm_community",[]);
   let targetPost=null;
   let becameLiked=false;
@@ -1045,16 +1044,16 @@ const toggleLike=function(postId){
     return Object.assign({},p,{likes:liked?p.likes.filter(function(n){return n!==myName;}):p.likes.concat([myName])});
   });
   savePosts(updated);
-  supabase.from('posts').update({post_data:updated.find(function(p){return p.id===postId;})}).eq('id',postId).then();
+  supabase.from('posts').update({post_data:updated.find(function(p){return p.id===postId;})}).eq('id',dbId).then();
 if(becameLiked&&targetPost&&targetPost.author!==myName){
   supabase.from('notifications').insert([{recipient:targetPost.author,notif_data:{type:'like',timestamp:Date.now()}}]).then();
 }
 } ;
 
-const deletePost=function(postId){
+const deletePost=function(postId,dbId){
   const updated=freshPosts.filter(function(p){return p.id!==postId;});
   savePosts(updated);
-  supabase.from('posts').delete().eq('id',postId).then();
+  supabase.from('posts').delete().eq('id',dbId).then();
 };
 
   const timeAgo=function(ts){
@@ -1169,8 +1168,8 @@ const deletePost=function(postId){
                   {mutual?"맞팔 ✓":following?"팔로잉":"팔로우"}
                 </button>
               )}
-{isOwn&&<button onClick={()=>{setEditingPost(post);setComment(post.comment||"");setShowPostModal(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16,padding:"0 2px"}}>✏️</button>}
-{isOwn&&<button onClick={()=>deletePost(post.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px"}}>🗑</button>}
+{isOwn&&<button onClick={()=>{setEditingPost(post);setComment(post.comment||"");setShowPostModal(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16,padding:"0 2px"}}>✎</button>}
+{isOwn&&<button onClick={()=>deletePost(post.id,post.dbId)}style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px"}}>🗑</button>}
             </div>
 
             {post.image&&(
@@ -1206,7 +1205,7 @@ const deletePost=function(postId){
             {post.comment&&<p style={{fontSize:14,color:textMain,margin:"0 16px 10px",lineHeight:1.65}}>{post.comment}</p>}
 
             <div style={{display:"flex",alignItems:"center",gap:16,padding:"10px 16px 14px",borderTop:"1px solid "+borderCol}}>
-              <button onClick={()=>toggleLike(post.id)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",padding:0}}>
+<button onClick={()=>toggleLike(post.id,post.dbId)}style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",padding:0}}>
                 <span style={{fontSize:20,transition:"transform 0.15s",transform:liked?"scale(1.2)":"scale(1)"}}>{liked?"❤️":"🤍"}</span>
                 <span style={{fontSize:13,fontWeight:600,color:liked?th.p:textSub}}>{post.likes.length}</span>
               </button>
@@ -1283,7 +1282,7 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
           <h2 style={{fontSize:20,fontWeight:800,color:textMain,margin:0}}>⭐ 사용자 평가</h2>
           <p style={{fontSize:13,color:textSub,margin:"4px 0 0"}}>D+Puzzle를 사용해보신 소감을 남겨주세요!</p>
         </div>
-<button onClick={function(){setShowForm(true);}} style={{background:th.p,color:"white",border:"none",borderRadius:12,padding:"10px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✏️ 평가 작성</button>
+<button onClick={function(){setShowForm(true);}} style={{background:th.p,color:"white",border:"none",borderRadius:12,padding:"10px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✎ 평가 작성</button>
       </div>
 
       {/* Summary card */}
@@ -1326,7 +1325,7 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}} onClick={function(){setShowForm(false);}}>
           <div onClick={function(e){e.stopPropagation();}} style={{background:cardBg,borderRadius:20,padding:"24px 28px",width:500,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.3)"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-              <div style={{fontSize:17,fontWeight:800,color:textMain}}>✏️ 평가 작성하기</div>
+              <div style={{fontSize:17,fontWeight:800,color:textMain}}>✎ 평가 작성하기</div>
               <button onClick={function(){setShowForm(false);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:textSub}}>✕</button>
             </div>
 
@@ -1400,7 +1399,7 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(function(i){return <span key={i} style={{fontSize:14,filter:i<=r.stars?"none":"grayscale(1) opacity(0.25)"}}>⭐</span>;})}</div>
                   {r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
-{r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
+{r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));}} 
 {r.author!==myName&&!r.feedbackApplied&&<button onClick={function(){
   const updated=reviews.map(function(rv){return rv.id===r.id?Object.assign({},rv,{feedbackApplied:true}):rv;});
   saveReviews(updated);
