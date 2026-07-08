@@ -1046,8 +1046,9 @@ const toggleLike=function(postId){
   });
   savePosts(updated);
   supabase.from('posts').update({post_data:updated.find(function(p){return p.id===postId;})}).eq('id',postId).then();
-  if(becameLiked&&targetPost&&targetPost.author!==myName){
-    supabase.from('notifications').insert(
+if(becameLiked&&targetPost&&targetPost.author!==myName){
+  supabase.from('notifications').insert([{recipient:targetPost.author,notif_data:{type:'like',timestamp:Date.now()}}]).then();
+}
 
 const deletePost=function(postId){
   const updated=freshPosts.filter(function(p){return p.id!==postId;});
