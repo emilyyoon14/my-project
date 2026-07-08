@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { Analytics } from "@vercel/analytics/react"
 import { supabase } from './supabaseClient';
 
+const ADMIN_NAME = "윤자영";
+
 const INIT_QUESTS = [
   { id: 1, label: "수학 30분 학습", baseXp: 20, suggestedMin: 30 },
   { id: 2, label: "영어 단어 20개", baseXp: 15, suggestedMin: 20 },
@@ -1399,7 +1401,7 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(function(i){return <span key={i} style={{fontSize:14,filter:i<=r.stars?"none":"grayscale(1) opacity(0.25)"}}>⭐</span>;})}</div>
                   {r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));supabase.from('reviews').delete().eq('id',r.dbId).then();}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
-{r.author!==myName&&!r.feedbackApplied&&<button onClick={function(){
+{myName===ADMIN_NAME&&r.author!==myName&&!r.feedbackApplied&&<button onClick={function(){
   const updated=reviews.map(function(rv){return rv.id===r.id?Object.assign({},rv,{feedbackApplied:true}):rv;});
   saveReviews(updated);
 supabase.from('reviews').update({review_data:updated.find(function(rv){return rv.id===r.id;})}).eq('id',r.dbId).then();
