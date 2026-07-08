@@ -1248,9 +1248,9 @@ function ReviewPage({profile,darkMode}){
 
   const saveReviews=function(r){setReviews(r);try{localStorage.setItem("bm_reviews",JSON.stringify(r));}catch{}};
 useEffect(function(){
-  supabase.from('reviews').select('review_data').order('id',{ascending:false}).then(function(res){
+  supabase.from('reviews').select('id,review_data').order('id',{ascending:false}).then(function(res){
     if(res.data){
-      const loaded=res.data.map(function(row){return row.review_data;});
+      const loaded=res.data.map(function(row){return Object.assign({},row.review_data,{dbId:row.id});});
       setReviews(loaded);
       try{localStorage.setItem("bm_reviews",JSON.stringify(loaded));}catch{}
     }
@@ -1398,11 +1398,11 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(function(i){return <span key={i} style={{fontSize:14,filter:i<=r.stars?"none":"grayscale(1) opacity(0.25)"}}>⭐</span>;})}</div>
-                  {r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
+                  {r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));supabase.from('reviews').delete().eq('id',r.dbId).then();}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
 {r.author!==myName&&!r.feedbackApplied&&<button onClick={function(){
   const updated=reviews.map(function(rv){return rv.id===r.id?Object.assign({},rv,{feedbackApplied:true}):rv;});
   saveReviews(updated);
-  supabase.from('reviews').update({review_data:updated.find(function(rv){return rv.id===r.id;})}).eq('id',r.id).then();
+supabase.from('reviews').update({review_data:updated.find(function(rv){return rv.id===r.id;})}).eq('id',r.dbId).then();
   supabase.from('notifications').insert([{recipient:r.author,notif_data:{type:'feedback_applied',timestamp:Date.now()}}]).then();
 }} style={{fontSize:11,background:"none",border:"1px solid #86efac",borderRadius:8,padding:"3px 8px",cursor:"pointer",color:"#16a34a",fontFamily:"inherit"}} title="피드백이 적용되었다고 알림 보내기">✓ 피드백 적용됨</button>}
 {r.feedbackApplied&&<span style={{fontSize:11,color:"#16a34a",fontWeight:600}}>✓ 적용됨</span>}
