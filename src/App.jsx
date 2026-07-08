@@ -1049,6 +1049,7 @@ const toggleLike=function(postId){
 if(becameLiked&&targetPost&&targetPost.author!==myName){
   supabase.from('notifications').insert([{recipient:targetPost.author,notif_data:{type:'like',timestamp:Date.now()}}]).then();
 }
+} ;
 
 const deletePost=function(postId){
   const updated=freshPosts.filter(function(p){return p.id!==postId;});
