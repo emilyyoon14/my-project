@@ -1171,6 +1171,7 @@ const deletePost=function(postId){
               )}
 {isOwn&&<button onClick={()=>{setEditingPost(post);setComment(post.comment||"");setShowPostModal(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16,padding:"0 2px"}}>✏️</button>}
 {isOwn&&<button onClick={()=>deletePost(post.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px"}}>🗑</button>}
+            </div>
 
             {post.image&&(
               <div style={{background:"#000",maxHeight:400,overflow:"hidden"}}>
