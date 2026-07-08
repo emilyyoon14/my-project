@@ -1284,6 +1284,7 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
           <p style={{fontSize:13,color:textSub,margin:"4px 0 0"}}>D+Puzzle를 사용해보신 소감을 남겨주세요!</p>
         </div>
 <button onClick={function(){setShowForm(true);}} style={{background:th.p,color:"white",border:"none",borderRadius:12,padding:"10px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✏️ 평가 작성</button>
+      </div>
 
       {/* Summary card */}
       <div style={{background:cardBg,borderRadius:20,padding:"20px 24px",marginBottom:20,border:"1px solid "+borderCol,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
