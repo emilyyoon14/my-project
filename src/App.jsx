@@ -733,6 +733,8 @@ function Confetti(){const pieces=Array.from({length:40},function(_,i){return {id
 // ── Profile Page ──
 function ProfilePage({viewUser,myProfile,posts,follows,onFollow,onBack,darkMode,myStats,myXP,onEditProfile,allBadges}){
   const th=getTheme("default",darkMode||false);
+const [otherXP,setOtherXP]=useState(0);
+const [otherStats,setOtherStats]=useState(null);
   const isMe=viewUser.name===myProfile.name;
   const userPosts=posts.filter(function(p){return p.author===viewUser.name;});
   const myName=myProfile.name;
@@ -747,9 +749,19 @@ function ProfilePage({viewUser,myProfile,posts,follows,onFollow,onBack,darkMode,
   const borderCol=darkMode?"#2d2d4e":th.border;
   const textMain=darkMode?"#e2e8f0":th.text;
   const textSub=darkMode?"#94a3b8":"#64748b";
-  const lvl=isMe?getLvl(myXP):null;
-  const rank=isMe?getRank(myXP):null;
+const displayXP=isMe?myXP:otherXP;
+const lvl=getLvl(displayXP);
+const rank=getRank(displayXP);
   const earnedBadges=isMe?(allBadges||[]).filter(function(b){return b.req(Object.assign({},myStats,{xp:myXP,level:lvl&&lvl.level}));}):[];
+useEffect(function(){
+  if(isMe)return;
+  supabase.from('user_stats').select('xp,stats_data').eq('name',viewUser.name).then(function(res){
+    if(res.data&&res.data.length>0){
+      setOtherXP(res.data[0].xp||0);
+      setOtherStats(res.data[0].stats_data||null);
+    }
+  });
+},[viewUser.name]);
   return(
     <div style={{minHeight:"100vh",background:darkMode?"#0f0f1a":"#f4f6fb"}}>
       <div style={{background:darkMode?"rgba(15,15,26,0.95)":"rgba(255,255,255,0.95)",borderBottom:"1px solid "+borderCol,padding:"0 20px",height:52,display:"flex",alignItems:"center",gap:14,position:"sticky",top:60,zIndex:50,backdropFilter:"blur(8px)"}}><button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:textMain,padding:"4px 8px",display:"flex",alignItems:"center",gap:6}}>← <span style={{fontSize:14,fontWeight:600}}>{viewUser.name}</span></button></div>
@@ -760,7 +772,7 @@ function ProfilePage({viewUser,myProfile,posts,follows,onFollow,onBack,darkMode,
             <div style={{display:"flex",gap:8,marginTop:4}}>{isMe?<button onClick={onEditProfile} style={{padding:"7px 20px",borderRadius:10,border:"1.5px solid "+borderCol,background:darkMode?"#16213e":"#f8fafc",color:textMain,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>프로필 편집</button>:<button onClick={function(){onFollow(viewUser.name);}} style={{padding:"7px 20px",borderRadius:10,border:"1.5px solid "+(following?borderCol:th.p),background:following?"none":th.p,color:following?textSub:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{mutual?"맞팔 ✓":following?"팔로잉":"팔로우"}</button>}</div>
           </div>
           <div style={{fontSize:18,fontWeight:800,color:textMain,marginBottom:2}}>{viewUser.name}</div>
-          {isMe&&rank&&<div style={{fontSize:12,color:th.p,fontWeight:600,marginBottom:6}}>{rank.icon} Lv.{lvl.level} {rank.name} · {myXP} XP</div>}
+{rank&&<div style={{fontSize:12,color:th.p,fontWeight:600,marginBottom:6}}>{rank.icon} Lv.{lvl.level} {rank.name} · {displayXP} XP</div>}
           {viewUser.bio&&<p style={{fontSize:13,color:textSub,margin:"0 0 4px",lineHeight:1.6}}>{viewUser.bio}</p>}
           {viewUser.goal&&<p style={{fontSize:12,color:th.p,margin:"0 0 14px"}}>🎯 {viewUser.goal}</p>}
           <div style={{display:"flex",gap:10,marginTop:viewUser.bio||viewUser.goal?8:14}}>
@@ -785,7 +797,139 @@ function ProfilePage({viewUser,myProfile,posts,follows,onFollow,onBack,darkMode,
   );
 }
 
+function CommentSection({postId,postAuthor,myName,myAvatar,darkMode,th}){
+  const [comments,setComments]=useState([]);
+  const [showAll,setShowAll]=useState(false);
+  const [text,setText]=useState("");
+  const [loaded,setLoaded]=useState(false);
 
+  useEffect(function(){
+    supabase.from('comments').select('id,comment_data').eq('post_id',postId).order('id',{ascending:true}).then(function(res){
+      if(res.data){
+        setComments(res.data.map(function(row){return Object.assign({},row.comment_data,{dbId:row.id});}));
+      }
+      setLoaded(true);
+    });
+  },[postId]);
+
+  const submitComment=function(){
+    if(!text.trim())return;
+    const c={author:myName,avatarSrc:myAvatar,text:text.trim(),timestamp:Date.now()};
+    supabase.from('comments').insert([{post_id:postId,comment_data:c}]).select().then(function(res){
+      if(res.data&&res.data[0]){
+        setComments(comments.concat([Object.assign({},c,{dbId:res.data[0].id})]));
+      }
+    });
+if(postAuthor&&postAuthor!==myName){
+  supabase.from('notifications').insert([{recipient:postAuthor,notif_data:{type:'comment',fromUser:myName,fromAvatar:myAvatar,postId:postId,text:text.trim(),timestamp:Date.now()}}]).then();
+}
+    setText("");
+  };
+
+  const deleteComment=function(dbId){
+    setComments(comments.filter(function(c){return c.dbId!==dbId;}));
+    supabase.from('comments').delete().eq('id',dbId).then();
+  };
+
+  const visible=showAll?comments:comments.slice(-2);
+  const textSub=darkMode?"#94a3b8":"#64748b";
+  const borderCol=darkMode?"#2d2d4e":th.pb;
+  const textMain=darkMode?"#e2e8f0":th.pt;
+
+  return(
+    <div style={{padding:"0 16px 14px",borderTop:comments.length>0||true?"1px solid "+borderCol:"none"}}>
+      {comments.length>2&&!showAll&&(
+        <div onClick={function(){setShowAll(true);}} style={{fontSize:12,color:textSub,cursor:"pointer",padding:"8px 0 4px"}}>댓글 {comments.length}개 모두 보기</div>
+      )}
+      <div style={{display:"flex",flexDirection:"column",gap:8,paddingTop:8}}>
+        {visible.map(function(c){
+          return(
+            <div key={c.dbId} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+              <div style={{width:26,height:26,borderRadius:"50%",background:th.pl,overflow:"hidden",flexShrink:0}}>
+                {c.avatarSrc?<img src={c.avatarSrc} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>👤</div>}
+              </div>
+              <div style={{flex:1}}>
+                <span style={{fontSize:12.5,fontWeight:700,color:textMain,marginRight:6}}>{c.author}</span>
+                <span style={{fontSize:12.5,color:textMain}}>{c.text}</span>
+              </div>
+              {c.author===myName&&<button onClick={function(){deleteComment(c.dbId);}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:0}}>🗑</button>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center"}}>
+        <input value={text} onChange={function(e){setText(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")submitComment();}} placeholder="댓글 달기..." style={{flex:1,padding:"7px 10px",border:"1px solid "+borderCol,borderRadius:20,fontSize:12.5,fontFamily:"inherit",outline:"none",background:darkMode?"#16213e":"#f8fafc",color:textMain}}/>
+        <button onClick={submitComment} disabled={!text.trim()} style={{background:"none",border:"none",cursor:text.trim()?"pointer":"default",color:text.trim()?th.p:"#cbd5e1",fontSize:12.5,fontWeight:700,fontFamily:"inherit"}}>게시</button>
+      </div>
+    </div>
+  );
+}
+function NotificationBell({myName,darkMode,th,onViewProfile,onOpenPost}){
+  const [notifs,setNotifs]=useState([]);
+  const [open,setOpen]=useState(false);
+  const unreadCount=notifs.filter(function(n){return !n.is_read;}).length;
+
+  const loadNotifs=function(){
+    if(!myName)return;
+    supabase.from('notifications').select('id,notif_data,is_read').eq('recipient',myName).order('id',{ascending:false}).limit(30).then(function(res){
+      if(res.data)setNotifs(res.data);
+    });
+  };
+
+  useEffect(function(){
+    loadNotifs();
+    const iv=setInterval(loadNotifs,15000);
+    return function(){clearInterval(iv);};
+  },[myName]);
+
+  const openBell=function(){
+    setOpen(function(o){return !o;});
+    if(!open&&unreadCount>0){
+      const ids=notifs.filter(function(n){return !n.is_read;}).map(function(n){return n.id;});
+      supabase.from('notifications').update({is_read:true}).in('id',ids).then();
+      setNotifs(notifs.map(function(n){return Object.assign({},n,{is_read:true});}));
+    }
+  };
+
+  const timeAgo=function(ts){
+    const diff=Math.floor((Date.now()-ts)/1000);
+    if(diff<60)return "방금 전";
+    if(diff<3600)return Math.floor(diff/60)+"분 전";
+    if(diff<86400)return Math.floor(diff/3600)+"시간 전";
+    return Math.floor(diff/86400)+"일 전";
+  };
+
+  const msgFor=function(n){
+    const d=n.notif_data;
+    if(d.type==="like")return d.fromUser+"님이 회원님의 게시물을 좋아합니다";
+    if(d.type==="comment")return d.fromUser+"님이 댓글을 남겼습니다: "+(d.text||"");
+    if(d.type==="feedback_applied")return "관리자가 회원님의 피드백을 적용했습니다 🎉";
+    return "새 알림";
+  };
+
+  return(
+    <div style={{position:"relative"}}>
+      <button onClick={openBell} title="알림" style={{width:36,height:36,borderRadius:10,border:"1.5px solid "+(darkMode?"#2d2d4e":"#e2e8f0"),background:darkMode?"#1e1e2e":"white",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+        🔔
+        {unreadCount>0&&<span style={{position:"absolute",top:-2,right:-2,background:"#ef4444",color:"white",fontSize:9,fontWeight:700,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount>9?"9+":unreadCount}</span>}
+      </button>
+      {open&&(
+        <div style={{position:"absolute",top:44,right:0,width:320,maxHeight:400,overflowY:"auto",background:darkMode?"#1e1e2e":"white",border:"1px solid "+(darkMode?"#2d2d4e":"#e2e8f0"),borderRadius:14,boxShadow:"0 8px 32px rgba(0,0,0,0.18)",zIndex:200}}>
+          <div style={{padding:"12px 16px",borderBottom:"1px solid "+(darkMode?"#2d2d4e":"#f1f5f9"),fontSize:13,fontWeight:700,color:darkMode?"#e2e8f0":"#1e293b"}}>알림</div>
+          {notifs.length===0&&<div style={{padding:20,textAlign:"center",fontSize:12,color:"#94a3b8"}}>알림이 없어요</div>}
+          {notifs.map(function(n){
+            return(
+              <div key={n.id} onClick={function(){setOpen(false);if(n.notif_data.type==="feedback_applied"){return;}if(onOpenPost)onOpenPost(n.notif_data.postId);}} style={{padding:"10px 16px",borderBottom:"1px solid "+(darkMode?"#2d2d4e":"#f8fafc"),cursor:"pointer",background:n.is_read?"transparent":(darkMode?"#16213e":"#fdf5f8")}}>
+                <div style={{fontSize:12.5,color:darkMode?"#e2e8f0":"#334155",lineHeight:1.5}}>{msgFor(n)}</div>
+                <div style={{fontSize:10.5,color:"#94a3b8",marginTop:3}}>{timeAgo(n.notif_data.timestamp)}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 // ── Community Page ──
 function CommunityPage({profile,quests,xp,darkMode,onViewProfile}){
   const th=getTheme("default",darkMode||false);
@@ -813,6 +957,19 @@ useEffect(function(){
     }
   });
 },[]);
+useEffect(function(){
+  supabase.from('follows').select('follower,following').then(function(res){
+    if(res.data){
+      const grouped={};
+      res.data.forEach(function(row){
+        if(!grouped[row.follower])grouped[row.follower]=[];
+        grouped[row.follower].push(row.following);
+      });
+      setFollows(grouped);
+      try{localStorage.setItem("bm_follows",JSON.stringify(grouped));}catch{}
+    }
+  });
+},[]);
 
   const myName=profile.name;
   const myFollows=(freshFollows[myName])||[];
@@ -821,14 +978,20 @@ useEffect(function(){
     const theirFollows=freshFollows[name]||[];
     return isFollowing(name)&&theirFollows.includes(myName);
   };
-  const toggleFollow=function(name){
-    if(name===myName)return;
-    const cur=(freshFollows[myName])||[];
-    const updated=cur.includes(name)?cur.filter(function(n){return n!==name;}):cur.concat([name]);
-    const newF=Object.assign({},freshFollows);
-    newF[myName]=updated;
-    saveFollows(newF);
-  };
+const toggleFollow=function(name){
+  if(name===myName)return;
+  const cur=(freshFollows[myName])||[];
+  const isFollowingNow=cur.includes(name);
+  const updated=isFollowingNow?cur.filter(function(n){return n!==name;}):cur.concat([name]);
+  const newF=Object.assign({},freshFollows);
+  newF[myName]=updated;
+  saveFollows(newF);
+  if(isFollowingNow){
+    supabase.from('follows').delete().eq('follower',myName).eq('following',name).then();
+  }else{
+    supabase.from('follows').insert([{follower:myName,following:name}]).then();
+  }
+};
 
   const loadImage=function(file){
     if(!file||!file.type.startsWith("image/"))return;
@@ -870,15 +1033,21 @@ const submitPost=function(){
   setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);
   supabase.from('posts').insert([{ post_data: newPost }]).then();
 };
-  const toggleLike=function(postId){
-    const current=loadLS("bm_community",[]);
-    const updated=current.map(function(p){
-      if(p.id!==postId)return p;
-      const liked=p.likes.includes(myName);
-      return Object.assign({},p,{likes:liked?p.likes.filter(function(n){return n!==myName;}):p.likes.concat([myName])});
-    });
-    savePosts(updated);
-  };
+const toggleLike=function(postId){
+  const current=loadLS("bm_community",[]);
+  let targetPost=null;
+  let becameLiked=false;
+  const updated=current.map(function(p){
+    if(p.id!==postId)return p;
+    targetPost=p;
+    const liked=p.likes.includes(myName);
+    becameLiked=!liked;
+    return Object.assign({},p,{likes:liked?p.likes.filter(function(n){return n!==myName;}):p.likes.concat([myName])});
+  });
+  savePosts(updated);
+  supabase.from('posts').update({post_data:updated.find(function(p){return p.id===postId;})}).eq('id',postId).then();
+  if(becameLiked&&targetPost&&targetPost.author!==myName){
+    supabase.from('notifications').insert(
 
 const deletePost=function(postId){
   const updated=freshPosts.filter(function(p){return p.id!==postId;});
@@ -912,7 +1081,7 @@ const deletePost=function(postId){
 
       {/* Post modal */}
       {showPostModal&&(
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>{setShowPostModal(false);setEditingPost(null);}}
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>{setShowPostModal(false);setEditingPost(null);}}>
           <div onClick={e=>e.stopPropagation()} style={{background:cardBg,borderRadius:20,padding:"24px 28px",width:460,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.3)"}}>
             <div style={{fontSize:17,fontWeight:800,color:textMain,marginBottom:18}}>📸 게시물 만들기</div>
 
@@ -1039,6 +1208,7 @@ const deletePost=function(postId){
                 <span style={{fontSize:13,fontWeight:600,color:liked?th.p:textSub}}>{post.likes.length}</span>
               </button>
               <span style={{fontSize:12,color:textSub}}>{post.likes.length>0?post.likes.slice(0,2).join(", ")+(post.likes.length>2?" 외 "+(post.likes.length-2)+"명":"")+" 이 좋아해요":"가장 먼저 좋아요를 눌러보세요!"}</span>
+<CommentSection postId={post.id} postAuthor={post.author} myName={myName} myAvatar={profile.avatarSrc} darkMode={darkMode} th={th}/>
             </div>
           </div>
         );
@@ -1110,9 +1280,7 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
           <h2 style={{fontSize:20,fontWeight:800,color:textMain,margin:0}}>⭐ 사용자 평가</h2>
           <p style={{fontSize:13,color:textSub,margin:"4px 0 0"}}>D+Puzzle를 사용해보신 소감을 남겨주세요!</p>
         </div>
-        {!alreadyReviewed&&<button onClick={function(){setShowForm(true);}} style={{background:th.p,color:"white",border:"none",borderRadius:12,padding:"10px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✏️ 평가 작성</button>}
-        {alreadyReviewed&&<div style={{fontSize:12,color:th.p,fontWeight:600,background:th.pl||"#fce8f0",padding:"6px 14px",borderRadius:20,border:"1px solid "+(th.border||"#e2e8f0")}}>✓ 평가 완료</div>}
-      </div>
+<button onClick={function(){setShowForm(true);}} style={{background:th.p,color:"white",border:"none",borderRadius:12,padding:"10px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✏️ 평가 작성</button>
 
       {/* Summary card */}
       <div style={{background:cardBg,borderRadius:20,padding:"20px 24px",marginBottom:20,border:"1px solid "+borderCol,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
@@ -1228,6 +1396,14 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(function(i){return <span key={i} style={{fontSize:14,filter:i<=r.stars?"none":"grayscale(1) opacity(0.25)"}}>⭐</span>;})}</div>
                   {r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
+{r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
+{r.author!==myName&&!r.feedbackApplied&&<button onClick={function(){
+  const updated=reviews.map(function(rv){return rv.id===r.id?Object.assign({},rv,{feedbackApplied:true}):rv;});
+  saveReviews(updated);
+  supabase.from('reviews').update({review_data:updated.find(function(rv){return rv.id===r.id;})}).eq('id',r.id).then();
+  supabase.from('notifications').insert([{recipient:r.author,notif_data:{type:'feedback_applied',timestamp:Date.now()}}]).then();
+}} style={{fontSize:11,background:"none",border:"1px solid #86efac",borderRadius:8,padding:"3px 8px",cursor:"pointer",color:"#16a34a",fontFamily:"inherit"}} title="피드백이 적용되었다고 알림 보내기">✓ 피드백 적용됨</button>}
+{r.feedbackApplied&&<span style={{fontSize:11,color:"#16a34a",fontWeight:600}}>✓ 적용됨</span>}
                 </div>
               </div>
               {(r.goodTags&&r.goodTags.length>0)&&(<div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>{r.goodTags.map(function(t){return <span key={t} style={{fontSize:10,background:th.pl||"#fce8f0",color:th.p,padding:"2px 8px",borderRadius:20,border:"1px solid "+(th.border||"#f0d0e0"),fontWeight:600}}>👍 {t}</span>;}) }</div>)}
@@ -1687,6 +1863,10 @@ const [refreshBump,setRefreshBump]=useState(0);
 
   useEffect(function(){try{localStorage.setItem("bm_xp",JSON.stringify(xp));}catch{}},[xp]);
   useEffect(function(){try{localStorage.setItem("bm_stats",JSON.stringify(stats));}catch{}},[stats]);
+useEffect(function(){
+  if(!profile.name)return;
+  supabase.from('user_stats').upsert({name:profile.name,xp:xp,stats_data:stats,avatar_src:profile.avatarSrc}).then();
+},[xp,stats,profile]);
   useEffect(function(){try{localStorage.setItem("bm_profile",JSON.stringify(profile));}catch{}},[profile]);
   useEffect(function(){try{localStorage.setItem("bm_loggedIn",JSON.stringify(loggedIn));}catch{}},[loggedIn]);
   useEffect(function(){try{localStorage.setItem("bm_accounts",JSON.stringify(accounts));}catch{}},[accounts]);
@@ -1766,6 +1946,7 @@ const [refreshBump,setRefreshBump]=useState(0);
                 </button>
               </React.Fragment>
             )}
+<NotificationBell myName={profile.name} darkMode={darkMode} th={th} onViewProfile={setProfileView} onOpenPost={function(postId){setProfileView(null);setTab("community");}}/>
             <button onClick={()=>setShowSettings(true)} title="설정" style={{width:36,height:36,borderRadius:10,border:"1.5px solid "+(darkMode?"#2d2d4e":"#e2e8f0"),background:darkMode?"#1e1e2e":"white",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>⚙️</button>
           </div>
         </div>
