@@ -58,6 +58,22 @@ const fmtMin=function(m){
   return rem===0?h+"시간":h+"시간 "+rem+"분";
 };
 const loadLS=function(key,fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}catch{return fallback;}};
+const calcStreak=function(dates){
+  if(!dates||dates.length===0)return 0;
+  const set=new Set(dates);
+  const fmtD=function(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+  let cur=new Date();
+  if(!set.has(fmtD(cur))){
+    cur.setDate(cur.getDate()-1);
+    if(!set.has(fmtD(cur)))return 0;
+  }
+  let streak=0;
+  while(set.has(fmtD(cur))){
+    streak++;
+    cur.setDate(cur.getDate()-1);
+  }
+  return streak;
+};
 
 // Default theme (pink) - dark/light only
 // ── Color utilities for widget tone system ──
@@ -569,7 +585,7 @@ const [praiseMsg,setPraiseMsg]=useState(null);
     quests.forEach(function(q){
       if(!q._justDone)return;
       onXPChange(function(x){return x+q.baseXp;});
-      setStats(function(s){const wXP=s.weeklyXP.slice();wXP[today]=(wXP[today]||0)+q.baseXp;const wM=s.weeklyMins.slice();wM[today]=(wM[today]||0)+q.userMin;const today2=new Date();const dateStr=today2.getFullYear()+"-"+String(today2.getMonth()+1).padStart(2,"0")+"-"+String(today2.getDate()).padStart(2,"0");const prevDates=s.studyDates||[];const newDates=prevDates.includes(dateStr)?prevDates:prevDates.concat([dateStr]);return Object.assign({},s,{questsDone:s.questsDone+1,studySecs:s.studySecs+q.userMin*60,weeklyXP:wXP,weeklyMins:wM,studyDates:newDates});});
+      setStats(function(s){const wXP=s.weeklyXP.slice();wXP[today]=(wXP[today]||0)+q.baseXp;const wM=s.weeklyMins.slice();wM[today]=(wM[today]||0)+q.userMin;const today2=new Date();const dateStr=today2.getFullYear()+"-"+String(today2.getMonth()+1).padStart(2,"0")+"-"+String(today2.getDate()).padStart(2,"0");const prevDates=s.studyDates||[];const newDates=prevDates.includes(dateStr)?prevDates:prevDates.concat([dateStr]);return Object.assign({},s,{questsDone:s.questsDone+1,studySecs:s.studySecs+q.userMin*60,weeklyXP:wXP,weeklyMins:wM,studyDates:newDates,streak:calcStreak(newDates)});});
       setQuests(function(p){return p.map(function(qq){return qq.id===q.id?Object.assign({},qq,{_justDone:false}):qq;});});
       try{if(navigator.vibrate)navigator.vibrate([80,40,120]);}catch(e){}
       const PRAISE=["🎉 완벽해요! 오늘도 한 조각을 완성했어요!","💪 대단해요! 이 기세로 계속 go!","✨ 퍼즐 한 조각 획득!","🔥 스트릭을 지켜냈어요!","⚡ XP 획득! 레벨업이 가까워지고 있어요!","🏆 훌륭해요! 습관이 실력이 되는 순간이에요."];
@@ -1891,7 +1907,13 @@ useEffect(function(){
   useEffect(function(){try{localStorage.setItem("bm_accounts",JSON.stringify(accounts));}catch{}},[accounts]);
   useEffect(function(){try{localStorage.setItem("bm_dark",JSON.stringify(darkMode));}catch{}},[darkMode]);
   useEffect(function(){try{localStorage.setItem("bm_primary",JSON.stringify(primaryColor));}catch{}},[primaryColor]);
-  useEffect(function(){if(loggedIn)setTab("dashboard");},[]);
+useEffect(function(){if(loggedIn)setTab("dashboard");},[]);
+  useEffect(function(){
+    const recalced=calcStreak(stats.studyDates||[]);
+    if(recalced!==stats.streak){
+      setStats(function(s){return Object.assign({},s,{streak:recalced});});
+    }
+  },[]);
 
   const handleAuth=function(info){
     const email=info.email,pw=info.pw,name=info.name,mode=info.mode;
