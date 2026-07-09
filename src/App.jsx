@@ -368,7 +368,7 @@ function NotePage({onEntriesChange}){
 
 const SB=function(bg,color,bc){return {fontSize:11,background:bg,color:color,border:bc?"1px solid "+bc:"none",borderRadius:6,padding:"3px 10px",cursor:"pointer",fontFamily:"inherit"};};
 
-function QuestItem({quest,onStart,onPause,onResume,onUndo,onDelete,onEditMin,onEditLabel,tone}){
+function QuestItem({quest,onStart,onPause,onResume,onConfirm,onUndo,onDelete,onEditMin,onEditLabel,tone}){
   const [editingMin,setEditingMin]=useState(false);
   const [localMin,setLocalMin]=useState(quest.userMin);
   const [editingLabel,setEditingLabel]=useState(false);
@@ -380,7 +380,7 @@ function QuestItem({quest,onStart,onPause,onResume,onUndo,onDelete,onEditMin,onE
   return(
     <div style={{background:done?"#f0fdf4":t.bg,borderRadius:12,border:"1px solid "+(done?"#86efac":t.border),padding:"11px 13px",marginBottom:8,transition:"all 0.25s"}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:18,height:18,borderRadius:5,border:"2px solid "+(done?"#22c55e":pct>=90?t.accent:"#cbd5e1"),background:done?"#22c55e":"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:pct>=90&&!done?"pointer":"default",boxShadow:pct>=90&&!done?"0 0 0 3px "+t.accent+"26":"none"}} onClick={pct>=90&&!done?function(){onStart();}:undefined}>{done&&<span style={{color:"white",fontSize:10}}>✓</span>}</div>
+        <div style={{width:18,height:18,borderRadius:5,border:"2px solid "+(done?"#22c55e":pct>=90?t.accent:"#cbd5e1"),background:done?"#22c55e":"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:pct>=90&&!done?"pointer":"default",boxShadow:pct>=90&&!done?"0 0 0 3px "+t.accent+"26":"none"}} onClick={pct>=90&&!done?function(){onConfirm();}:undefined}{done&&<span style={{color:"white",fontSize:10}}>✓</span>}</div>
         {editingLabel&&!done?<input autoFocus value={localLabel} onChange={function(e){setLocalLabel(e.target.value);}} onBlur={function(){onEditLabel(localLabel.trim()||quest.label);setEditingLabel(false);}} onKeyDown={function(e){if(e.key==="Enter"){onEditLabel(localLabel.trim()||quest.label);setEditingLabel(false);}if(e.key==="Escape")setEditingLabel(false);}} style={{flex:1,border:"none",borderBottom:"1.5px solid "+t.accent,outline:"none",fontSize:13,background:"transparent",fontFamily:"inherit",padding:"1px 0"}}/>:<span onDoubleClick={function(){if(!done&&!running)setEditingLabel(true);}} title={done?"":"더블클릭하여 이름 수정"} style={{flex:1,fontSize:13,color:done?"#94a3b8":t.text,textDecoration:done?"line-through":"none",cursor:done||running?"default":"text"}}>{quest.label}</span>}
         {!done&&(editingMin?<input type="number" value={localMin} min={1} max={300} autoFocus onChange={function(e){setLocalMin(e.target.value);}} onBlur={function(){const v=Math.max(1,Number(localMin)||1);onEditMin(v);setEditingMin(false);}} onKeyDown={function(e){if(e.key==="Enter"){const v=Math.max(1,Number(localMin)||1);onEditMin(v);setEditingMin(false);}}} style={{width:52,padding:"2px 6px",border:"1px solid "+t.accent,borderRadius:6,fontSize:12,textAlign:"center",fontFamily:"inherit",outline:"none"}}/>:<span onClick={function(){if(!running)setLocalMin(String(userMin));if(!running)setEditingMin(true);}} title="클릭하여 시간 수정" style={{fontSize:12,color:t.solid?t.text:t.accent,background:t.solid?"rgba(255,255,255,0.18)":"white",padding:"2px 8px",borderRadius:20,cursor:"pointer"}}>{fmtMin(userMin)} ✎</span>)}
         <span style={{fontSize:12,color:t.solid?t.text:t.accent,fontWeight:700}}>+{quest.baseXp} XP</span>
@@ -537,7 +537,14 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab,darkMode,onQu
       </div>
     );
   };
-  const [quests,setQuests]=useState(function(){return INIT_QUESTS.map(function(q){return Object.assign({},q,{userMin:q.suggestedMin,secs:null,running:false,done:false});});});
+const todayStr=function(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+  const [quests,setQuests]=useState(function(){
+    const saved=loadLS("bm_quests_today",null);
+    if(saved&&saved.date===todayStr()){
+      return saved.quests.map(function(q){return Object.assign({},q,{running:false});});
+    }
+    return INIT_QUESTS.map(function(q){return Object.assign({},q,{userMin:q.suggestedMin,secs:null,running:false,done:false});});
+  });
   const [addingQ,setAddingQ]=useState(false);
   const [newQL,setNewQL]=useState("");
   const addQuest=function(){
@@ -546,8 +553,11 @@ function Dashboard({xp,onXPChange,stats,setStats,xpFlash,activeTab,darkMode,onQu
     setNewQL("");
     setAddingQ(false);
   };
-  const [praiseMsg,setPraiseMsg]=useState(null);
+const [praiseMsg,setPraiseMsg]=useState(null);
   useEffect(function(){if(onQuestsChange)onQuestsChange(quests);},[quests]);
+  useEffect(function(){
+    try{localStorage.setItem("bm_quests_today",JSON.stringify({date:todayStr(),quests:quests}));}catch{}
+  },[quests]);
   useEffect(function(){if(activeTab!=="dashboard"){setQuests(function(p){return p.map(function(q){return q.running?Object.assign({},q,{running:false}):q;});});}  },[activeTab]);
   const ivRef=useRef(null);
   useEffect(function(){
@@ -737,15 +747,17 @@ function ProfilePage({viewUser,myProfile,posts,follows,onFollow,onBack,darkMode,
   const th=getTheme("default",darkMode||false);
 const [otherXP,setOtherXP]=useState(0);
 const [otherStats,setOtherStats]=useState(null);
-  const isMe=viewUser.name===myProfile.name;
-  const userPosts=posts.filter(function(p){return p.author===viewUser.name;});
-  const myName=myProfile.name;
-  const myFollows=(follows[myName])||[];
-  const following=myFollows.includes(viewUser.name);
-  const theirFollows=(follows[viewUser.name])||[];
-  const mutual=following&&theirFollows.includes(myName);
-  const followerCount=Object.keys(follows).filter(function(k){return (follows[k]||[]).includes(viewUser.name);}).length;
-  const followingCount=theirFollows.length;
+const viewKey=viewUser.id||viewUser.name;
+const myKey=myProfile.id||myProfile.name;
+const isMe=viewKey===myKey;
+const userPosts=posts.filter(function(p){return (p.authorId||p.author)===viewKey;});
+const myName=myProfile.name;
+const myFollows=(follows[myKey])||[];
+const following=myFollows.includes(viewKey);
+const theirFollows=(follows[viewKey])||[];
+const mutual=following&&theirFollows.includes(myKey);
+const followerCount=Object.keys(follows).filter(function(k){return (follows[k]||[]).includes(viewKey);}).length;
+const followingCount=theirFollows.length;
   const [selPost,setSelPost]=useState(null);
   const cardBg=darkMode?"#1e1e2e":"white";
   const borderCol=darkMode?"#2d2d4e":th.border;
@@ -771,7 +783,7 @@ useEffect(function(){
         <div style={{background:cardBg,padding:"24px 20px 20px",borderRadius:20,margin:"12px 16px",border:"1px solid "+borderCol,boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14}}>
             <div style={{width:80,height:80,borderRadius:"50%",border:"3px solid "+th.border,overflow:"hidden",background:th.pl,flexShrink:0}}>{viewUser.avatarSrc?<img src={viewUser.avatarSrc} alt="avatar" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,background:th.pl}}>👤</div>}</div>
-            <div style={{display:"flex",gap:8,marginTop:4}}>{isMe?<button onClick={onEditProfile} style={{padding:"7px 20px",borderRadius:10,border:"1.5px solid "+borderCol,background:darkMode?"#16213e":"#f8fafc",color:textMain,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>프로필 편집</button>:<button onClick={function(){onFollow(viewUser.name);}} style={{padding:"7px 20px",borderRadius:10,border:"1.5px solid "+(following?borderCol:th.p),background:following?"none":th.p,color:following?textSub:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{mutual?"맞팔 ✓":following?"팔로잉":"팔로우"}</button>}</div>
+            <div style={{display:"flex",gap:8,marginTop:4}}>{isMe?<button onClick={onEditProfile} style={{padding:"7px 20px",borderRadius:10,border:"1.5px solid "+borderCol,background:darkMode?"#16213e":"#f8fafc",color:textMain,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>프로필 편집</button>:<button onClick={function(){onFollow(viewKey);}}style={{padding:"7px 20px",borderRadius:10,border:"1.5px solid "+(following?borderCol:th.p),background:following?"none":th.p,color:following?textSub:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{mutual?"맞팔 ✓":following?"팔로잉":"팔로우"}</button>}</div>
           </div>
           <div style={{fontSize:18,fontWeight:800,color:textMain,marginBottom:2}}>{viewUser.name}</div>
 {rank&&<div style={{fontSize:12,color:th.p,fontWeight:600,marginBottom:6}}>{rank.icon} Lv.{lvl.level} {rank.name} · {displayXP} XP</div>}
@@ -799,7 +811,7 @@ useEffect(function(){
   );
 }
 
-function CommentSection({postId,postAuthor,myName,myAvatar,darkMode,th}){
+function CommentSection({postId,postAuthor,postAuthorId,myName,myId,myAvatar,darkMode,th}){
   const [comments,setComments]=useState([]);
   const [showAll,setShowAll]=useState(false);
   const [text,setText]=useState("");
@@ -816,14 +828,14 @@ function CommentSection({postId,postAuthor,myName,myAvatar,darkMode,th}){
 
   const submitComment=function(){
     if(!text.trim())return;
-    const c={author:myName,avatarSrc:myAvatar,text:text.trim(),timestamp:Date.now()};
+    const c={author:myName,authorId:myId,avatarSrc:myAvatar,text:text.trim(),timestamp:Date.now()};
     supabase.from('comments').insert([{post_id:postId,comment_data:c}]).select().then(function(res){
       if(res.data&&res.data[0]){
         setComments(comments.concat([Object.assign({},c,{dbId:res.data[0].id})]));
       }
     });
-if(postAuthor&&postAuthor!==myName){
-  supabase.from('notifications').insert([{recipient:postAuthor,notif_data:{type:'comment',fromUser:myName,fromAvatar:myAvatar,postId:postId,text:text.trim(),timestamp:Date.now()}}]).then();
+if(postAuthorId&&postAuthorId!==myId){
+  supabase.from('notifications').insert([{recipient:postAuthorId,notif_data:{type:'comment',fromUser:myName,fromAvatar:myAvatar,postId:postId,text:text.trim(),timestamp:Date.now()}}]).then();
 }
     setText("");
   };
@@ -854,7 +866,7 @@ if(postAuthor&&postAuthor!==myName){
                 <span style={{fontSize:12.5,fontWeight:700,color:textMain,marginRight:6}}>{c.author}</span>
                 <span style={{fontSize:12.5,color:textMain}}>{c.text}</span>
               </div>
-              {c.author===myName&&<button onClick={function(){deleteComment(c.dbId);}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:0}}>🗑</button>}
+              {(c.authorId?c.authorId===myId:c.author===myName)&&<button onClick={function(){deleteComment(c.dbId);}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:12,padding:0}}>🗑</button>}
             </div>
           );
         })}
@@ -866,14 +878,14 @@ if(postAuthor&&postAuthor!==myName){
     </div>
   );
 }
-function NotificationBell({myName,darkMode,th,onViewProfile,onOpenPost}){
+function NotificationBell({myName,myId,darkMode,th,onViewProfile,onOpenPost}){
   const [notifs,setNotifs]=useState([]);
   const [open,setOpen]=useState(false);
   const unreadCount=notifs.filter(function(n){return !n.is_read;}).length;
 
-  const loadNotifs=function(){
-    if(!myName)return;
-    supabase.from('notifications').select('id,notif_data,is_read').eq('recipient',myName).order('id',{ascending:false}).limit(30).then(function(res){
+const loadNotifs=function(){
+    if(!myId)return;
+    supabase.from('notifications').select('id,notif_data,is_read').eq('recipient',myId).order('id',{ascending:false}).limit(30).then(function(res){
       if(res.data)setNotifs(res.data);
     });
   };
@@ -882,7 +894,7 @@ function NotificationBell({myName,darkMode,th,onViewProfile,onOpenPost}){
     loadNotifs();
     const iv=setInterval(loadNotifs,15000);
     return function(){clearInterval(iv);};
-  },[myName]);
+},[myId]);
 
   const openBell=function(){
     setOpen(function(o){return !o;});
@@ -973,25 +985,26 @@ useEffect(function(){
   });
 },[]);
 
-  const myName=profile.name;
-  const myFollows=(freshFollows[myName])||[];
-  const isFollowing=function(name){return myFollows.includes(name);};
-  const isMutual=function(name){
-    const theirFollows=freshFollows[name]||[];
-    return isFollowing(name)&&theirFollows.includes(myName);
-  };
-const toggleFollow=function(name){
-  if(name===myName)return;
-  const cur=(freshFollows[myName])||[];
-  const isFollowingNow=cur.includes(name);
-  const updated=isFollowingNow?cur.filter(function(n){return n!==name;}):cur.concat([name]);
+const myName=profile.name;
+const myKey=profile.id||myName;
+const myFollows=(freshFollows[myKey])||(freshFollows[myName])||[];
+const isFollowing=function(key){return myFollows.includes(key);};
+const isMutual=function(key){
+  const theirFollows=freshFollows[key]||[];
+  return isFollowing(key)&&(theirFollows.includes(myKey)||theirFollows.includes(myName));
+};
+const toggleFollow=function(key){
+  if(key===myKey||key===myName)return;
+  const cur=(freshFollows[myKey])||(freshFollows[myName])||[];
+  const isFollowingNow=cur.includes(key);
+  const updated=isFollowingNow?cur.filter(function(n){return n!==key;}):cur.concat([key]);
   const newF=Object.assign({},freshFollows);
-  newF[myName]=updated;
+  newF[myKey]=updated;
   saveFollows(newF);
   if(isFollowingNow){
-    supabase.from('follows').delete().eq('follower',myName).eq('following',name).then();
+    supabase.from('follows').delete().eq('follower',myKey).eq('following',key).then();
   }else{
-    supabase.from('follows').insert([{follower:myName,following:name}]).then();
+    supabase.from('follows').insert([{follower:myKey,following:key}]).then();
   }
 };
 
@@ -1020,10 +1033,11 @@ const submitPost=function(){
     setShowPostModal(false);setSelQuests([]);setComment("");setPostImg(null);setEditingPost(null);
 supabase.from('posts').update({ post_data: updatedPost }).eq('id',editingPost.dbId).then();
   }
-  const newPost={
-    id:Date.now(),
-    author:myName,
-    avatarSrc:profile.avatarSrc,
+const newPost={
+  id:Date.now(),
+  author:myName,
+  authorId:profile.id,
+  avatarSrc:profile.avatarSrc,
     quests:selQuests.map(function(q){return {label:q.label,xp:q.baseXp,status:q.done?"done":"in-progress",pct:q.secs!==null&&!q.done?Math.round(((q.userMin*60-q.secs)/(q.userMin*60))*100):q.done?100:0};}),
     comment:comment.trim(),
     image:postImg,
@@ -1035,22 +1049,23 @@ supabase.from('posts').update({ post_data: updatedPost }).eq('id',editingPost.db
   supabase.from('posts').insert([{ post_data: newPost }]).then();
 };
 const toggleLike=function(postId,dbId){
+  const myId=profile.id||myName;
   const current=loadLS("bm_community",[]);
   let targetPost=null;
   let becameLiked=false;
   const updated=current.map(function(p){
     if(p.id!==postId)return p;
     targetPost=p;
-    const liked=p.likes.includes(myName);
+    const liked=p.likes.includes(myId)||p.likes.includes(myName);
     becameLiked=!liked;
-    return Object.assign({},p,{likes:liked?p.likes.filter(function(n){return n!==myName;}):p.likes.concat([myName])});
+    return Object.assign({},p,{likes:liked?p.likes.filter(function(n){return n!==myId&&n!==myName;}):p.likes.concat([myId])});
   });
   savePosts(updated);
   supabase.from('posts').update({post_data:updated.find(function(p){return p.id===postId;})}).eq('id',dbId).then();
-if(becameLiked&&targetPost&&targetPost.author!==myName){
-  supabase.from('notifications').insert([{recipient:targetPost.author,notif_data:{type:'like',timestamp:Date.now()}}]).then();
+if(becameLiked&&targetPost&&(targetPost.authorId?targetPost.authorId!==profile.id:targetPost.author!==myName)){
+  supabase.from('notifications').insert([{recipient:targetPost.authorId||targetPost.author,notif_data:{type:'like',fromUser:myName,timestamp:Date.now()}}]).then();
 }
-} ;
+};
 
 const deletePost=function(postId,dbId){
   const updated=freshPosts.filter(function(p){return p.id!==postId;});
@@ -1147,26 +1162,26 @@ const deletePost=function(postId,dbId){
         </div>
       )}
       {displayPosts.map(function(post){
-        const liked=post.likes.includes(myName);
-        const isOwn=post.author===myName;
-        const following=isFollowing(post.author);
-        const mutual=isMutual(post.author);
+const liked=post.likes.includes(profile.id)||post.likes.includes(myName);
+const isOwn=post.authorId?post.authorId===profile.id:post.author===myName;
+const following=isFollowing(post.authorId||post.author);
+const mutual=isMutual(post.authorId||post.author);
         return(
           <div key={post.id} style={{background:cardBg,borderRadius:18,marginBottom:16,border:"1px solid "+borderCol,boxShadow:"0 2px 12px rgba(0,0,0,0.07)",overflow:"hidden"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px 10px"}}>
-              <div onClick={()=>onViewProfile&&onViewProfile({name:post.author,avatarSrc:post.avatarSrc,bio:"",goal:""})} style={{width:40,height:40,borderRadius:"50%",background:th.pl,border:"2px solid "+th.pb,overflow:"hidden",flexShrink:0,cursor:"pointer"}}>
+              <div onClick={()=>onViewProfile&&onViewProfile({name:post.author,id:post.authorId,avatarSrc:post.avatarSrc,bio:"",goal:""})} style={{width:40,height:40,borderRadius:"50%",background:th.pl,border:"2px solid "+th.pb,overflow:"hidden",flexShrink:0,cursor:"pointer"}}>
                 {post.avatarSrc?<img src={post.avatarSrc} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👤</div>}
               </div>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span onClick={()=>onViewProfile&&onViewProfile({name:post.author,avatarSrc:post.avatarSrc,bio:"",goal:""})} style={{fontSize:14,fontWeight:700,color:textMain,cursor:"pointer"}}>{post.author}</span>
-                  {mutual&&<span style={{fontSize:9,background:th.p,color:"white",padding:"2px 6px",borderRadius:20,fontWeight:700}}>맞팔</span>}
+                  <span onClick={()=>onViewProfile&&onViewProfile({name:post.author,id:post.authorId,avatarSrc:post.avatarSrc,bio:"",goal:""})} style={{fontSize:14,fontWeight:700,color:textMain,cursor:"pointer"}}>{post.author}</span>
+{mutual&&<span style={{fontSize:9,background:th.p,color:"white",padding:"2px 6px",borderRadius:20,fontWeight:700}}>맞팔</span>}
                   {!mutual&&following&&<span style={{fontSize:9,background:th.pl,color:th.p,padding:"2px 6px",borderRadius:20,fontWeight:600,border:"1px solid "+th.pb}}>팔로잉</span>}
                 </div>
                 <div style={{fontSize:11,color:textSub}}>{timeAgo(post.timestamp)}</div>
               </div>
               {!isOwn&&(
-                <button onClick={()=>toggleFollow(post.author)} style={{fontSize:12,fontWeight:700,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+(following?borderCol:th.p),background:following?(darkMode?"#16213e":"#f8fafc"):"none",color:following?textSub:th.p,cursor:"pointer",fontFamily:"inherit"}}>
+                <button onClick={()=>toggleFollow(post.authorId||post.author)}style={{fontSize:12,fontWeight:700,padding:"5px 14px",borderRadius:20,border:"1.5px solid "+(following?borderCol:th.p),background:following?(darkMode?"#16213e":"#f8fafc"):"none",color:following?textSub:th.p,cursor:"pointer",fontFamily:"inherit"}}>
                   {mutual?"맞팔 ✓":following?"팔로잉":"팔로우"}
                 </button>
               )}
@@ -1212,7 +1227,7 @@ const deletePost=function(postId,dbId){
                 <span style={{fontSize:13,fontWeight:600,color:liked?th.p:textSub}}>{post.likes.length}</span>
               </button>
               <span style={{fontSize:12,color:textSub}}>{post.likes.length>0?post.likes.slice(0,2).join(", ")+(post.likes.length>2?" 외 "+(post.likes.length-2)+"명":"")+" 이 좋아해요":"가장 먼저 좋아요를 눌러보세요!"}</span>
-<CommentSection postId={post.id} postAuthor={post.author} myName={myName} myAvatar={profile.avatarSrc} darkMode={darkMode} th={th}/>
+<CommentSection postId={post.id} postAuthor={post.author} postAuthorId={post.authorId} myName={myName} myId={profile.id} myAvatar={profile.avatarSrc} darkMode={darkMode} th={th}/>
             </div>
           </div>
         );
@@ -1261,7 +1276,7 @@ useEffect(function(){
 
   const submit=function(){
     if(!canSubmit)return;
-    const r={id:Date.now(),author:myName,avatarSrc:profile.avatarSrc,stars:stars,liked:liked.trim(),disliked:disliked.trim(),suggest:suggest.trim(),goodTags:selGood,badTags:selBad,timestamp:Date.now()};
+const r={id:Date.now(),author:myName,authorId:profile.id,avatarSrc:profile.avatarSrc,stars:stars,liked:liked.trim(),disliked:disliked.trim(),suggest:suggest.trim(),goodTags:selGood,badTags:selBad,timestamp:Date.now()};
     saveReviews([r].concat(reviews));
 supabase.from('reviews').insert([{ review_data: r }]).then();
     setShowForm(false);setStars(0);setLiked("");setDisliked("");setSuggest("");setSelGood([]);setSelBad([]);
@@ -1400,8 +1415,8 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(function(i){return <span key={i} style={{fontSize:14,filter:i<=r.stars?"none":"grayscale(1) opacity(0.25)"}}>⭐</span>;})}</div>
-                  {r.author===myName&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));supabase.from('reviews').delete().eq('id',r.dbId).then();}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
-{myName===ADMIN_NAME&&r.author!==myName&&!r.feedbackApplied&&<button onClick={function(){
+{(r.authorId?r.authorId===profile.id:r.author===myName)&&<button onClick={function(){saveReviews(reviews.filter(function(rv){return rv.id!==r.id;}));supabase.from('reviews').delete().eq('id',r.dbId).then();}} style={{background:"none",border:"none",cursor:"pointer",color:"#fca5a5",fontSize:16,padding:"0 2px",lineHeight:1}} title="삭제">🗑</button>}
+{myName===ADMIN_NAME&&(r.authorId?r.authorId!==profile.id:r.author!==myName)&&!r.feedbackApplied&&<button onClick={function(){
   const updated=reviews.map(function(rv){return rv.id===r.id?Object.assign({},rv,{feedbackApplied:true}):rv;});
   saveReviews(updated);
 supabase.from('reviews').update({review_data:updated.find(function(rv){return rv.id===r.id;})}).eq('id',r.dbId).then();
@@ -1880,17 +1895,18 @@ useEffect(function(){
 
   const handleAuth=function(info){
     const email=info.email,pw=info.pw,name=info.name,mode=info.mode;
-    if(mode==="signup"){
-      setAccounts(function(a){const n=Object.assign({},a);n[email]={pw:pw,name:name};return n;});
-      setProfile(function(p){return Object.assign({},p,{name:name});});
+    if(mode==="signup"){const newId=String(Date.now())+Math.random().toString(36).slice(2,8);
+setAccounts(function(a){const n=Object.assign({},a);n[email]={pw:pw,name:name,id:newId};return n;});
+setProfile(function(p){return Object.assign({},p,{name:name,id:newId});});
       setLoggedIn(true);setAuthModal(null);setTab("dashboard");
     } else {
-      const acc=accounts[email];
-      if(!acc)return "등록되지 않은 이메일입니다. 먼저 회원가입을 해주세요.";
-      if(acc.pw!==pw)return "비밀번호가 올바르지 않습니다.";
-      setProfile(function(p){return Object.assign({},p,{name:acc.name});});
-      setLoggedIn(true);setAuthModal(null);setTab("dashboard");
-      return null;
+const acc=accounts[email];
+if(!acc)return "등록되지 않은 이메일입니다. 먼저 회원가입을 해주세요.";
+if(acc.pw!==pw)return "비밀번호가 올바르지 않습니다.";
+const uid=acc.id||(String(Date.now())+Math.random().toString(36).slice(2,8));
+if(!acc.id){setAccounts(function(a){const n=Object.assign({},a);n[email]=Object.assign({},acc,{id:uid});return n;});}
+setProfile(function(p){return Object.assign({},p,{name:acc.name,id:uid});});
+setLoggedIn(true);setAuthModal(null);setTab("dashboard");
     }
   };
 
@@ -1950,7 +1966,7 @@ useEffect(function(){
                 </button>
               </React.Fragment>
             )}
-<NotificationBell myName={profile.name} darkMode={darkMode} th={th} onViewProfile={setProfileView} onOpenPost={function(postId){setProfileView(null);setTab("community");}}/>
+<NotificationBell myName={profile.name} myId={profile.id} darkMode={darkMode} th={th} onViewProfile={setProfileView} onOpenPost={function(postId){setProfileView(null);setTab("community");}}/>
             <button onClick={()=>setShowSettings(true)} title="설정" style={{width:36,height:36,borderRadius:10,border:"1.5px solid "+(darkMode?"#2d2d4e":"#e2e8f0"),background:darkMode?"#1e1e2e":"white",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>⚙️</button>
           </div>
         </div>
