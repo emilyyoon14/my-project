@@ -16,7 +16,11 @@ const ALL_BADGES = [
   { id:"xp100",    emoji:"🌟", label:"100 XP",     req:s=>s.xp>=100 },
   { id:"xp300",    emoji:"🥈", label:"Silver 달성", req:s=>s.xp>=300 },
   { id:"xp700",    emoji:"🥇", label:"Gold 달성",   req:s=>s.xp>=700 },
-  { id:"xp1200",   emoji:"💎", label:"Premium",    req:s=>s.xp>=1200 },
+{ id:"xp1200",   emoji:"🎖️", label:"Premium",    req:s=>s.xp>=1200 },
+  { id:"xp2000",   emoji:"💚", label:"Emerald 달성", req:s=>s.xp>=2000 },
+  { id:"xp3200",   emoji:"💎", label:"Diamond 달성", req:s=>s.xp>=3200 },
+  { id:"xp5000",   emoji:"⭐", label:"Master 달성",  req:s=>s.xp>=5000 },
+  { id:"xp8000",   emoji:"👑", label:"Challenger 달성", req:s=>s.xp>=8000 },
   { id:"streak3",  emoji:"🔥", label:"3일 연속",    req:s=>s.streak>=3 },
   { id:"streak7",  emoji:"💫", label:"7일 연속",    req:s=>s.streak>=7 },
   { id:"streak30", emoji:"👑", label:"30일 연속",   req:s=>s.streak>=30 },
@@ -29,7 +33,8 @@ const ALL_BADGES = [
   { id:"note20",   emoji:"📖", label:"노트 20개",   req:s=>s.entries>=20 },
   { id:"lv2",      emoji:"🎯", label:"Lv.2 달성",  req:s=>s.level>=2 },
   { id:"lv5",      emoji:"🌈", label:"Lv.5 달성",  req:s=>s.level>=5 },
-  { id:"lv7",      emoji:"🏆", label:"최고 레벨",   req:s=>s.level>=7 },
+{ id:"lv7",      emoji:"🏆", label:"Lv.7 달성",   req:s=>s.level>=7 },
+  { id:"lv15",     emoji:"🌟", label:"최고 레벨",   req:s=>s.level>=15 },
 ];
 
 const LEVELS=[
@@ -39,13 +44,25 @@ const LEVELS=[
   {level:4,minXP:600, maxXP:700},
   {level:5,minXP:700, maxXP:1000},
   {level:6,minXP:1000,maxXP:1200},
-  {level:7,minXP:1200,maxXP:99999},
+  {level:7,minXP:1200,maxXP:1600},
+  {level:8,minXP:1600,maxXP:2000},
+  {level:9,minXP:2000,maxXP:2600},
+  {level:10,minXP:2600,maxXP:3200},
+  {level:11,minXP:3200,maxXP:4000},
+  {level:12,minXP:4000,maxXP:5000},
+  {level:13,minXP:5000,maxXP:6500},
+  {level:14,minXP:6500,maxXP:8000},
+  {level:15,minXP:8000,maxXP:9500},
 ];
 const RANKS=[
   {name:"Bronze", minXP:0,   icon:"🥉",color:"#d97706",bg:"#fef3c7",border:"#fcd34d"},
   {name:"Silver", minXP:300, icon:"🥈",color:"#475569",bg:"#f1f5f9",border:"#94a3b8"},
   {name:"Gold",   minXP:700, icon:"🥇",color:"#b45309",bg:"#fffbeb",border:"#fde68a"},
-  {name:"Premium",minXP:1200,icon:"💎",color:"#a05070",bg:"#f5f4f2",border:"#b0aba3"},
+  {name:"Premium",minXP:1200,icon:"🎖️",color:"#a05070",bg:"#f5f4f2",border:"#b0aba3"},
+  {name:"Emerald",minXP:2000,icon:"💚",color:"#059669",bg:"#d1fae5",border:"#6ee7b7"},
+  {name:"Diamond",minXP:3200,icon:"💎",color:"#0891b2",bg:"#cffafe",border:"#67e8f9"},
+  {name:"Master", minXP:5000,icon:"⭐",color:"#7c3aed",bg:"#ede9fe",border:"#c4b5fd"},
+  {name:"Challenger",minXP:8000,icon:"👑",color:"#b91c1c",bg:"#fff1f1",border:"#fca5a5"},
 ];
 
 const getLvl=function(xp){for(let i=LEVELS.length-1;i>=0;i--)if(xp>=LEVELS[i].minXP)return LEVELS[i];return LEVELS[0];};
