@@ -785,13 +785,14 @@ const rank=getRank(displayXP);
   const earnedBadges=isMe?(allBadges||[]).filter(function(b){return b.req(Object.assign({},myStats,{xp:myXP,level:lvl&&lvl.level}));}):[];
 useEffect(function(){
   if(isMe)return;
-  supabase.from('user_stats').select('xp,stats_data').eq('name',viewUser.name).then(function(res){
+  const key=viewUser.id||viewUser.name;
+  supabase.from('user_stats').select('xp,stats_data').eq('id',key).then(function(res){
     if(res.data&&res.data.length>0){
       setOtherXP(res.data[0].xp||0);
       setOtherStats(res.data[0].stats_data||null);
     }
   });
-},[viewUser.name]);
+},[viewUser.id,viewUser.name]);
   return(
     <div style={{minHeight:"100vh",background:darkMode?"#0f0f1a":"#f4f6fb"}}>
       <div style={{background:darkMode?"rgba(15,15,26,0.95)":"rgba(255,255,255,0.95)",borderBottom:"1px solid "+borderCol,padding:"0 20px",height:52,display:"flex",alignItems:"center",gap:14,position:"sticky",top:60,zIndex:50,backdropFilter:"blur(8px)"}}><button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:textMain,padding:"4px 8px",display:"flex",alignItems:"center",gap:6}}>← <span style={{fontSize:14,fontWeight:600}}>{viewUser.name}</span></button></div>
@@ -1436,7 +1437,7 @@ supabase.from('reviews').insert([{ review_data: r }]).then();
   const updated=reviews.map(function(rv){return rv.id===r.id?Object.assign({},rv,{feedbackApplied:true}):rv;});
   saveReviews(updated);
 supabase.from('reviews').update({review_data:updated.find(function(rv){return rv.id===r.id;})}).eq('id',r.dbId).then();
-  supabase.from('notifications').insert([{recipient:r.author,notif_data:{type:'feedback_applied',timestamp:Date.now()}}]).then();
+  supabase.from('notifications').insert([{recipient:r.authorId||r.author,notif_data:{type:'feedback_applied',timestamp:Date.now()}}]).then();
 }} style={{fontSize:11,background:"none",border:"1px solid #86efac",borderRadius:8,padding:"3px 8px",cursor:"pointer",color:"#16a34a",fontFamily:"inherit"}} title="피드백이 적용되었다고 알림 보내기">✓ 피드백 적용됨</button>}
 {r.feedbackApplied&&<span style={{fontSize:11,color:"#16a34a",fontWeight:600}}>✓ 적용됨</span>}
                 </div>
@@ -1900,7 +1901,8 @@ const [refreshBump,setRefreshBump]=useState(0);
   useEffect(function(){try{localStorage.setItem("bm_stats",JSON.stringify(stats));}catch{}},[stats]);
 useEffect(function(){
   if(!profile.name)return;
-  supabase.from('user_stats').upsert({name:profile.name,xp:xp,stats_data:stats,avatar_src:profile.avatarSrc}).then();
+  const key=profile.id||profile.name;
+  supabase.from('user_stats').upsert({id:key,name:profile.name,xp:xp,stats_data:stats,avatar_src:profile.avatarSrc},{onConflict:'id'}).then();
 },[xp,stats,profile]);
   useEffect(function(){try{localStorage.setItem("bm_profile",JSON.stringify(profile));}catch{}},[profile]);
   useEffect(function(){try{localStorage.setItem("bm_loggedIn",JSON.stringify(loggedIn));}catch{}},[loggedIn]);
