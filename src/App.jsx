@@ -896,13 +896,14 @@ if(postAuthorId&&postAuthorId!==myId){
   );
 }
 function NotificationBell({myName,myId,darkMode,th,onViewProfile,onOpenPost}){
+  const recipientKeys=[myId,myName].filter(Boolean);
   const [notifs,setNotifs]=useState([]);
   const [open,setOpen]=useState(false);
   const unreadCount=notifs.filter(function(n){return !n.is_read;}).length;
 
 const loadNotifs=function(){
-    if(!myId)return;
-    supabase.from('notifications').select('id,notif_data,is_read').eq('recipient',myId).order('id',{ascending:false}).limit(30).then(function(res){
+    if(recipientKeys.length===0)return;
+    supabase.from('notifications').select('id,notif_data,is_read').in('recipient',recipientKeys).order('id',{ascending:false}).limit(30).then(function(res){
       if(res.data)setNotifs(res.data);
     });
   };
